@@ -229,6 +229,13 @@ pub fn run() -> anyhow::Result<()> {
         settings_window::show(mtm);
         settings_window::select_tab(&tab);
     }
+    // For screenshots: the Colors window, and rulers at given places.
+    if std::env::var_os("PIXLSNAPZ_SHOW_COLORS").is_some() {
+        settings_window::show_colors(mtm);
+    }
+    if let Ok(spec) = std::env::var("PIXLSNAPZ_SHOW_RULERS") {
+        crate::rulers::open_from_spec(&spec, mtm);
+    }
     if first_launch {
         welcome();
     }

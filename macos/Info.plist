@@ -4,6 +4,14 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>PixlSnapz</string>
+	<key>CFBundleExecutable</key>
+	<string>pixlsnapz</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.houseofmackee.pixlsnapz</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>en</string>
@@ -13,10 +21,10 @@
 	</array>
 	<key>CFBundleName</key>
 	<string>PixlSnapz</string>
-	<key>CFBundleDisplayName</key>
-	<string>PixlSnapz</string>
-	<key>CFBundleIdentifier</key>
-	<string>io.github.houseofmackee.pixlsnapz</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -28,16 +36,8 @@
 			</array>
 		</dict>
 	</array>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
-	<key>CFBundleExecutable</key>
-	<string>pixlsnapz</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>4</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
@@ -48,8 +48,8 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>MIT OR Apache-2.0</string>
-	<!-- Sparkle: the feed is the latest regular (not pre-release) release's
-	     appcast.xml; updates and the feed must be signed with this key. -->
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>PixlSnapz looks at the pixels on your screen to find the edges of what you measure. Nothing is saved or sent anywhere.</string>
 	<key>SUFeedURL</key>
 	<string>https://github.com/houseofmackee/pixlsnapz/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
@@ -58,7 +58,5 @@
 	<true/>
 	<key>SUVerifyUpdateBeforeExtraction</key>
 	<true/>
-	<key>NSScreenCaptureUsageDescription</key>
-	<string>PixlSnapz looks at the pixels on your screen to find the edges of what you measure. Nothing is saved or sent anywhere.</string>
 </dict>
 </plist>

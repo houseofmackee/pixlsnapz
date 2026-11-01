@@ -207,7 +207,8 @@ fn draw_joint(o: &Overlay, j: &crate::geometry::Joint, rgb: [f64; 3]) {
     pill_centered(&crate::geometry::format_angle(j.angle()), at, o.size, 12.0, &accent);
 }
 
-pub(super) fn draw_area(s: &Session, o: &Overlay, r: PxRect, rgb: [f64; 3]) {
+/// A box, tinted and outlined, without labels.
+fn draw_area_outline(o: &Overlay, r: PxRect, rgb: [f64; 3]) -> NSRect {
     let rect = o.rect_pt(r);
     color(rgb, if high_contrast() { 0.22 } else { 0.12 }).setFill();
     NSBezierPath::fillRect(rect);
@@ -215,6 +216,11 @@ pub(super) fn draw_area(s: &Session, o: &Overlay, r: PxRect, rgb: [f64; 3]) {
     path.setLineWidth(lw(1.0));
     color(rgb, 1.0).setStroke();
     path.stroke();
+    rect
+}
+
+pub(super) fn draw_area(s: &Session, o: &Overlay, r: PxRect, rgb: [f64; 3]) {
+    let rect = draw_area_outline(o, r, rgb);
 
     // Width above the top edge and height beside the right edge, like
     // dimension lines on a drawing; the full size below.
@@ -598,6 +604,11 @@ pub(super) fn draw(index: usize) {
                 continue;
             }
             match item {
+                // With a box's spacing showing, the others' size labels
+                // would crowd its gap labels: just their outlines.
+                Item::Area(r) if spacing_box.is_some() => {
+                    draw_area_outline(o, *r, rgb);
+                }
                 Item::Area(r) => draw_area(s, o, *r, rgb),
                 Item::Cross { x, y, cross, axes } => draw_cross(s, o, *x, *y, cross, *axes, rgb),
                 Item::Line { x0, y0, x1, y1 } => draw_line(s, o, (*x0, *y0, *x1, *y1), rgb),

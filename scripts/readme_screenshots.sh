@@ -42,6 +42,12 @@ at() { rect "$1" | awk -v dx="$2" -v dy="$3" '{ printf "%d,%d", $1 + dx, $2 + dy
 set -- $(rect content)
 REGION="$1,$2,$3,$4"
 
+# stop_app: quits the running PixlSnapz, quietly.
+stop_app() {
+    kill "$APP_PID" 2>/dev/null || true
+    wait "$APP_PID" 2>/dev/null || true
+}
+
 start_app() {
     PIXLSNAPZ_HOME="$PWD/$WORK/home" PIXLSNAPZ_LOG=pixlsnapz=debug "$@" "$APP" >> "$WORK/app.log" 2>&1 &
     APP_PID=$!
@@ -115,10 +121,65 @@ cliclick t:e w:100 dd:"$(at avatar 28 28)" w:80 dm:"$(at avatar 40 28)" w:80 dm:
 cliclick m:"$(at card2 17 99)" w:100 m:"$(at card2 16 99)"
 sleep 1.5
 shot tools
+# The loupe off again (Z is saved) for the next shots.
+cliclick t:z
 finish
 
-# 4. Settings, Measuring tab.
-kill "$APP_PID" 2>/dev/null || true
+# box NAME X0 Y0 X1 Y1: drags a box inside a demo element.
+box() {
+    cliclick dd:"$(at "$1" "$2" "$3")" w:80 dm:"$(at "$1" "$(( ($2 + $4) / 2 ))" "$(( ($3 + $5) / 2 ))")" w:80 \
+        dm:"$(at "$1" "$4" "$5")" w:150 du:"$(at "$1" "$4" "$5")" w:150
+}
+
+# 4. Spacing (⌥ over a kept box): equal gaps marked with "=".
+cliclick m:"$(at content 700 520)"
+measure
+box card1 0 0 212 168
+box card2 0 0 212 168
+box card3 0 0 212 168
+cliclick kd:alt m:"$(at card2 100 80)" w:100 m:"$(at card2 101 81)"
+shot spacing
+cliclick ku:alt
+finish
+
+# 5. Smart guides while drawing a box: shared edges and centers, and "="
+# on boxes of the same width and height.
+cliclick m:"$(at content 700 520)"
+measure
+box card1 0 0 212 168
+box card2 0 10 212 140
+cliclick dd:"$(at card3 0 10)" w:80 dm:"$(at card3 100 80)" w:80 dm:"$(at card3 212 140)"
+shot guides
+cliclick du:"$(at card3 212 140)"
+finish
+
+# 6. The Colors window, with a few colors from the demo and the contrast of
+# two of them (clicked through Accessibility, which needs no focus).
+stop_app
+printf 'colors = [[99, 102, 241], [232, 155, 62], [82, 183, 136], [61, 90, 254], [240, 170, 170], [17, 24, 39], [255, 255, 255]]\n' \
+    > "$WORK/home/colors.toml"
+start_app env PIXLSNAPZ_SHOW_COLORS=1
+sleep 1
+osascript -e 'tell application "System Events" to tell window "Colors" of (first process whose unix id is '"$APP_PID"')' \
+    -e 'click button 6 of scroll area 1' -e 'click button 7 of scroll area 1' -e 'end tell' >/dev/null
+sleep 0.5
+set -- $(osascript -e 'tell application "System Events" to tell (first process whose unix id is '"$APP_PID"') to get {position, size} of window "Colors"' | tr -d ',')
+screencapture -x -R "$1,$2,$3,$4" "$OUT/colors.png"
+echo "Wrote $OUT/colors.png"
+
+# 7. Floating rulers along the cards, with the pointer marker on both.
+stop_app
+set -- $(rect card1)
+CARD_X=$1
+CARD_Y=$2
+set -- $(rect card3)
+SPAN=$(($1 + $3 - CARD_X))
+start_app env PIXLSNAPZ_SHOW_RULERS="h:$CARD_X,$((CARD_Y - 44)),$SPAN;v:$((CARD_X - 44)),$CARD_Y,320"
+cliclick m:"$(at card2 120 90)" w:200 m:"$(at card2 121 91)"
+shot rulers
+
+# 8. Settings, Measuring tab.
+stop_app
 start_app env PIXLSNAPZ_SHOW_SETTINGS=measuring
 sleep 1
 set -- $(osascript -e 'tell application "System Events" to tell (first process whose unix id is '"$APP_PID"') to get {position, size} of window 1' | tr -d ',')

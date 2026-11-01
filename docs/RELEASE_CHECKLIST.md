@@ -5,6 +5,7 @@ Work through this for every release, on an Apple silicon Mac.
 ## 1. Automated checks
 
 - [ ] `cargo fmt --check`, `cargo clippy --all-targets`, `cargo test`, and `python3 -I scripts/strings.py --check` are clean.
+- [ ] README and screenshots are current (`scripts/readme_screenshots.sh` after visible changes).
 - [ ] CI is green on main (it also runs `cargo deny check`).
 - [ ] `CHANGELOG.md`: the Unreleased notes moved into a new `## [X.Y.Z] - YYYY-MM-DD` section, plus its compare link at the bottom.
 - [ ] Version bumped in `Cargo.toml` and `CFBundleVersion` in `macos/Info.plist`.
@@ -32,6 +33,9 @@ Work through this for every release, on an Apple silicon Mac.
 - [ ] ⌘C, Return, P, ⌘S, and ⇧⌘C copy or save the right thing.
 - [ ] Freeze, loupe, units, aspect ratio, tolerance, restore, and clear work, and the toggles persist.
 - [ ] Works over a full-screen app, in another Space, and with two displays; Esc, right click, and ⌘Tab end measuring.
+- [ ] ⌃ highlights a window (and, with Snap to Buttons and Fields and Accessibility allowed, a button); ⇧S and ⇧R save and load a set; ⇧F follows a scrolling page.
+- [ ] ⇧⌘2 picks a color; the Colors window copies, compares, saves a palette, and exports; rulers move, resize, and rotate.
+- [ ] Hold to measure starts and stops with the chosen keys, and the Shortcuts actions (Measure, Pick Color, New Ruler, Show Colors) run from the Shortcuts app.
 
 ## 4. Languages and accessibility
 

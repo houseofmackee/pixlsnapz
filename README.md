@@ -14,6 +14,16 @@ Apple silicon, macOS 14 Sonoma or later.
 </p>
 
 <p align="center">
+  <img src="docs/screenshots/spacing.png" alt="Holding Option over the middle of three kept boxes: the gaps on both sides, marked equal" width="49%">
+  <img src="docs/screenshots/guides.png" alt="Drawing a box: dotted smart guides where it lines up with the other boxes, and equal sizes marked" width="49%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/rulers.png" alt="Floating rulers along the cards, with the pointer's position marked on both" width="49%">
+  <img src="docs/screenshots/colors.png" alt="The Colors window: recent colors with their hex, RGB, and HSL codes, and the contrast of two of them" width="49%">
+</p>
+
+<p align="center">
   <img src="docs/screenshots/settings.png" alt="The Settings window, Measuring tab" width="50%">
 </p>
 
@@ -29,7 +39,7 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Smart guides**: while you draw or edit a box, dashed lines show where its edges or center line up with another kept box, and an "=" marks boxes of the same width or height; matching gaps in the ⌥ spacing view get an "=" too
 - **Window and element snapping**: hold ⌃ over a window to see its frame and size, and ⌃-click to keep it as a box. Turn on Snap to Buttons and Fields in Settings (it asks for Accessibility permission) and ⌃ picks out the button, field, or image under the pointer instead
 - **Measurement sets**: ⇧S saves what is on screen (boxes, lines, guides, and points) under a name, ⇧R cycles through the saved sets, and Measurement Sets in the menu starts measuring with one or deletes it; handy for checking the same layout again after a change
-- **Links**: `pixlsnapz://measure` starts measuring, `pixlsnapz://measure?set=Header` with a saved set, and `pixlsnapz://settings?tab=grid` opens a Settings tab, for Shortcuts, launchers, and scripts
+- **Links**: `pixlsnapz://` links start measuring (optionally with a saved set), pick a color, open a ruler, the Colors window, or a Settings tab, for launchers and scripts (see [Usage](#usage))
 - **Guides**: press V or H for a vertical or horizontal guide at the pointer; guides snap to nearby edges, show the distances between each other and to the screen edges, and move with the arrow keys
 - **Line ruler**: ⌥-drag (or press L for the line tool) to measure the length and angle of any line, with a protractor arc; hold ⇧ to snap to 45°
 - **Protractor**: start (or end) a line at the end of a kept line, and the angle between the two shows with an arc; ⌘C copies it, such as `125.5°`
@@ -74,7 +84,7 @@ This also links the `pixlsnapz` command line tool. PixlSnapz updates itself, so 
 
 Or download `PixlSnapz-<version>-arm64.dmg` from the [releases page](https://github.com/houseofmackee/pixlsnapz/releases/latest), open it, and drag PixlSnapz into Applications. Check it against `SHA256SUMS.txt` from the same release if you like (`shasum -a 256 -c --ignore-missing SHA256SUMS.txt`).
 
-PixlSnapz lives in the menu bar. The first time you measure, macOS asks to allow **Screen Recording**: PixlSnapz looks at the pixels on screen to find edges. Turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen PixlSnapz. Nothing is saved or sent anywhere, except screenshots you save yourself.
+PixlSnapz lives in the menu bar. The first time you measure, macOS asks to allow **Screen Recording**: PixlSnapz looks at the pixels on screen to find edges. Turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen PixlSnapz. Nothing is saved or sent anywhere, except screenshots you save yourself. PixlSnapz only asks for **Accessibility** permission if you turn on Snap to Buttons and Fields, to read where buttons and fields are.
 
 ## Languages
 
@@ -92,7 +102,9 @@ From 0.1.1 on, PixlSnapz updates itself with [Sparkle](https://sparkle-project.o
 
 ## Usage
 
-Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press **Esc** when done.
+Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press **Esc** when done. **⇧⌘2** picks a color instead, with just the loupe.
+
+The menu bar icon's menu also has Pick Color, Measurement Sets, Rulers, Colors…, and Recent Colors, plus the settings used most.
 
 | Key | Action |
 | --- | --- |
@@ -115,7 +127,7 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | T | Size format for ⌘C: plain, CSS, Tailwind, SwiftUI, CGSize |
 | ⌥ (hold) over a kept box | Its spacing to the nearest box, guide, or screen edge on every side |
 | Drag a handle | Resize a kept box, line, or circle; drag its outline (or a guide) to move it |
-| ⌃ (hold) over a window | The window's frame and size; ⌃-click keeps it as a box |
+| ⌃ (hold) over a window | The window's frame and size (or the button or field, with element snapping on); ⌃-click keeps it as a box |
 | ⇧S | Save what is on screen as a named set (type the name, Return saves) |
 | ⇧R | Load the next saved set |
 | Return | Copy the last size and finish |
@@ -222,7 +234,7 @@ scripts/make_icon.sh           # rebuild macos/AppIcon.icns after editing macos/
 open dist/PixlSnapz.app
 ```
 
-To try a translation, start the app with `-AppleLanguages "(de)"` (or `fr`, `es`). Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings folder, `PIXLSNAPZ_LOG=pixlsnapz=debug` enables verbose logging, and `PIXLSNAPZ_SHOW_SETTINGS=<tab>` (such as `measuring`) opens Settings at that tab on launch.
+To try a translation, start the app with `-AppleLanguages "(de)"` (or `fr`, `es`). Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings folder, `PIXLSNAPZ_LOG=pixlsnapz=debug` enables verbose logging, `PIXLSNAPZ_SHOW_SETTINGS=<tab>` (such as `measuring`) opens Settings at that tab on launch, `PIXLSNAPZ_SHOW_COLORS=1` opens the Colors window, and `PIXLSNAPZ_SHOW_RULERS=h:X,Y,LENGTH;v:X,Y,LENGTH` opens rulers at those places (for the README screenshots).
 
 ## Development
 
@@ -235,10 +247,12 @@ python3 -I scripts/strings.py  # update the translators' template after changing
 
 The edge detection (`src/measure.rs`), units (`src/units.rs`), and geometry (`src/geometry.rs`) work on plain numbers and RGBA buffers with no AppKit dependency, so they are fully unit tested. Two UI tests run without the test harness, because AppKit needs the main thread: `tests/settings_layout.rs` builds the real Settings window in every language and checks that no control overlaps another, leaves its tab, or has its text cut off, that VoiceOver can name every control, and that each tab's content matches `tests/snapshots/settings_layout.txt` (after an intended change, review the diff and run `UPDATE_SNAPSHOTS=1 cargo test --test settings_layout`); `tests/overlay_render.rs` renders kept measurements over a made-up screenshot and checks the pixels where outlines, labels, guides, lines, and circles must be, also in high contrast. The rest is AppKit through `objc2`, in the library too so the UI tests can build it (`src/main.rs` is only the command line):
 
-- `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit.
-- `src/overlay/` shows one transparent, non-activating panel per display: `mod.rs` (starting and ending a session, accessibility), `view.rs` (window, view, and mouse input), `session.rs` (session state and logic), `keys.rs` (keyboard commands), `actions.rs` (copying, contrast, and screenshots), `draw.rs` (drawing), and `loupe.rs` (the magnifier).
-- `src/settings_window/` is the Settings window (`mod.rs`), its shortcut recorder (`recorder.rs`), and its app and folder pickers (`pickers.rs`).
-- `src/app/` owns the menu bar item, the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission), and alerts (`mod.rs`), and the menu (`menu.rs`).
+- `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit, and lists other apps' window frames (for ⌃); `src/elements.rs` finds the button or field under the pointer through the Accessibility API.
+- `src/overlay/` shows one transparent, non-activating panel per display: `mod.rs` (starting and ending a session, accessibility), `view.rs` (window, view, and mouse input), `session.rs` (session state and logic), `keys.rs` (keyboard commands), `actions.rs` (copying, contrast, screenshots, and saving sets), `draw.rs` (drawing), `loupe.rs` (the magnifier), and `live.rs` (live mode's repeated captures).
+- `src/settings_window/` is the Settings window (`mod.rs`), its shortcut recorder (`recorder.rs`), its app and folder pickers (`pickers.rs`), and the Colors window (`colors.rs`).
+- `src/app/` owns the menu bar item, the global shortcuts (Carbon `RegisterEventHotKey`, which needs no extra permission), `pixlsnapz://` links, and alerts (`mod.rs`), the menu (`menu.rs`), and hold to measure (`hold.rs`).
+- `src/rulers.rs` is the floating rulers; `src/items.rs`, `src/color.rs`, and `src/integrations.rs` hold the saved sessions and sets, colors and palettes, and links, as plain, tested code.
+- `macos/intents/Intents.swift` is the Shortcuts actions (App Intents), which call the app's link handler; `build.rs` builds them into the app.
 - `src/updates.rs` loads Sparkle at runtime.
 - `src/i18n.rs` translates text: `t!("…")` for literals (with named `{placeholders}`), `n!("…")` for names translated where shown. The menu, Settings, and alert helpers translate the titles passed to them. `scripts/strings.py` collects all of it into `macos/en.lproj/Localizable.strings`, the template; translations are `macos/<language>.lproj/Localizable.strings` (plus `InfoPlist.strings` for the Screen Recording prompt). To add a language, copy the template there, translate the values, add the language to `CFBundleLocalizations` in `macos/Info.plist`, and run the checks: the Settings layout test also checks every translation for cut-off text.
 

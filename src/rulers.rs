@@ -357,6 +357,26 @@ pub fn new_ruler(vertical: bool, mtm: MainThreadMarker) {
         visible.origin.x + (visible.size.width - size.width) / 2.0 + count * 24.0,
         visible.origin.y + (visible.size.height - size.height) / 2.0 - count * 24.0,
     );
+    open(vertical, NSRect::new(origin, size), mtm);
+}
+
+/// For screenshots: rulers from `spec`, such as `h:300,200,500;v:250,240,300`
+/// (direction, then the top-left corner in screen points from the top-left
+/// of the main screen, and the length).
+pub fn open_from_spec(spec: &str, mtm: MainThreadMarker) {
+    let height = NSScreen::mainScreen(mtm).map_or(0.0, |s| s.frame().size.height);
+    for part in spec.split(';') {
+        let Some((kind, numbers)) = part.split_once(':') else { continue };
+        let n: Vec<f64> = numbers.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+        let [x, y, length] = n[..] else { continue };
+        let vertical = kind.trim() == "v";
+        let size = if vertical { NSSize::new(THICKNESS, length) } else { NSSize::new(length, THICKNESS) };
+        open(vertical, NSRect::new(NSPoint::new(x, height - y - size.height), size), mtm);
+    }
+}
+
+fn open(vertical: bool, frame: NSRect, mtm: MainThreadMarker) {
+    let (origin, size) = (frame.origin, frame.size);
     // SAFETY: NSPanel's designated initializer.
     let panel: Retained<NSPanel> = unsafe {
         msg_send![NSPanel::alloc(mtm), initWithContentRect: NSRect::new(origin, size),
