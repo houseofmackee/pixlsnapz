@@ -27,7 +27,7 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Design zoom**: measure a design shown at 200% (or 25% to 400%) in its own units
 - **Grids**: press O for a square grid or a column layout grid (columns, gutter, and margin are adjustable), over the whole screen or inside the last area
 - **Keep on screen**: press B to stop measuring but leave the measurements up while you keep working; clicks go through them, and the next measuring session picks them up again
-- **Settings window** with every option and a shortcut recorder
+- **Settings window** with every option in tabs, and a shortcut recorder
 - **Adjustable edge tolerance** for shadows, gradients, and low-contrast edges: scroll, or press [ and ]
 - **Restore** the measurements and guides of the previous session (R), even after a restart
 - Multiple displays with different scales, including over full-screen apps
@@ -90,7 +90,7 @@ Measurements kept on screen with B stay until you measure again (they come back 
 
 ## Settings
 
-Choose **Settings…** (⌘,) in the menu bar icon's menu for every option, including recording a new shortcut; the menu itself has the common ones. Everything is saved in `~/Library/Application Support/PixlSnapz/settings.toml` (Open Settings File in the Settings window), and changes made there by hand apply the next time you measure or open the menu.
+Choose **Settings…** (⌘,) in the menu bar icon's menu for every option, in five tabs (General, Measuring, Colors & Loupe, Grid, Screenshots), including recording a new shortcut; the menu itself has the common ones. Everything is saved in `~/Library/Application Support/PixlSnapz/settings.toml` (Open Settings File in the Settings window), and changes made there by hand apply the next time you measure or open the menu.
 
 ```toml
 shortcut = "shift+cmd+1"     # modifiers: cmd, shift, opt, ctrl; keys: a to z, 0 to 9, f1 to f12, punctuation, space

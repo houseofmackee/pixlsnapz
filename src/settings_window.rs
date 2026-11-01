@@ -1,5 +1,6 @@
-//! The Settings window: every setting, including a shortcut recorder.
-//! Each change is saved right away.
+//! The Settings window: every setting in five tabs (General, Measuring,
+//! Colors & Loupe, Grid, Screenshots), including a shortcut recorder. Each
+//! change is saved right away.
 
 use std::cell::RefCell;
 use std::ptr::NonNull;
@@ -9,9 +10,9 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSAutoresizingMaskOptions, NSBackingStoreType, NSButton, NSControlStateValueOff,
-    NSControlStateValueOn, NSEvent, NSEventMask, NSEventModifierFlags, NSFont, NSModalResponseOK, NSOpenPanel,
-    NSPopUpButton, NSScreen, NSScrollView, NSSlider, NSTextAlignment, NSTextField, NSView, NSWindow, NSWindowStyleMask,
+    NSApplication, NSBackingStoreType, NSButton, NSControlStateValueOff, NSControlStateValueOn, NSEvent, NSEventMask,
+    NSEventModifierFlags, NSModalResponseOK, NSOpenPanel, NSPopUpButton, NSSlider, NSTabView, NSTabViewItem,
+    NSTextAlignment, NSTextField, NSView, NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString};
 
@@ -19,12 +20,9 @@ use crate::color::{ColorFormat, Vision};
 use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, LOUPE_ZOOMS, Settings, Units};
 use crate::shortcut::{CMD, CONTROL, OPTION, SHIFT, Shortcut};
 
-const WIDTH: f64 = 540.0;
-/// Height of all the settings; the window is shorter (and scrolls) when the
-/// screen is.
-const CONTENT_HEIGHT: f64 = 990.0;
-/// The shortest the window gets.
-const MIN_HEIGHT: f64 = 320.0;
+const WIDTH: f64 = 580.0;
+/// Fits the tallest tab (Measuring) on any screen.
+const HEIGHT: f64 = 380.0;
 const LABEL_WIDTH: f64 = 190.0;
 const ROW: f64 = 30.0;
 const KEY_ESCAPE: u16 = 53;
@@ -71,23 +69,6 @@ define_class!(
     }
 
     unsafe impl NSObjectProtocol for Target {}
-);
-
-define_class!(
-    /// The scrolling settings view, flipped so it stays anchored at its top.
-    #[unsafe(super(NSView))]
-    #[thread_kind = MainThreadOnly]
-    #[name = "PixlSnapzSettingsView"]
-    struct FlippedView;
-
-    impl FlippedView {
-        #[unsafe(method(isFlipped))]
-        fn is_flipped(&self) -> bool {
-            true
-        }
-    }
-
-    unsafe impl NSObjectProtocol for FlippedView {}
 );
 
 struct Controls {
@@ -139,7 +120,7 @@ fn rect(x: f64, y: f64, w: f64, h: f64) -> NSRect {
     NSRect::new(NSPoint::new(x, y), NSSize::new(w, h))
 }
 
-/// Lays out rows from the top of a (non-flipped) view.
+/// Lays out rows from the top of a (non-flipped) tab view.
 struct Layout {
     view: Retained<NSView>,
     top: f64,
@@ -149,15 +130,6 @@ struct Layout {
 impl Layout {
     fn y(&self) -> f64 {
         self.top - ROW
-    }
-
-    fn section(&mut self, title: &str) {
-        self.top -= 8.0;
-        let label = NSTextField::labelWithString(&ns(title), self.mtm);
-        label.setFont(Some(&NSFont::boldSystemFontOfSize(13.0)));
-        label.setFrame(rect(20.0, self.y() + 4.0, WIDTH - 40.0, 20.0));
-        self.view.addSubview(&label);
-        self.top -= ROW - 4.0;
     }
 
     /// A label on the left and `control` (with its width) on the right.
@@ -250,25 +222,26 @@ pub fn show(mtm: MainThreadMarker) {
 fn build(mtm: MainThreadMarker) -> SettingsWindow {
     let target: Retained<Target> = unsafe { msg_send![Target::alloc(mtm), init] };
     let t = &*target;
-    let height = CONTENT_HEIGHT;
-    let window_height = window_height(mtm);
     // SAFETY: NSWindow's designated initializer.
     let window: Retained<NSWindow> = unsafe {
-        msg_send![NSWindow::alloc(mtm), initWithContentRect: rect(0.0, 0.0, WIDTH, window_height),
-            styleMask: NSWindowStyleMask::Titled | NSWindowStyleMask::Closable | NSWindowStyleMask::Resizable,
+        msg_send![NSWindow::alloc(mtm), initWithContentRect: rect(0.0, 0.0, WIDTH, HEIGHT),
+            styleMask: NSWindowStyleMask::Titled | NSWindowStyleMask::Closable,
             backing: NSBackingStoreType::Buffered, defer: false]
     };
-    // Only the height changes, up to showing everything.
-    window.setContentMinSize(NSSize::new(WIDTH, MIN_HEIGHT.min(window_height)));
-    window.setContentMaxSize(NSSize::new(WIDTH, CONTENT_HEIGHT));
     // SAFETY: the module keeps the window.
     unsafe { window.setReleasedWhenClosed(false) };
     window.setTitle(&ns("PixlSnapz Settings"));
-    // SAFETY: NSView's designated initializer.
-    let flipped: Retained<FlippedView> =
-        unsafe { msg_send![FlippedView::alloc(mtm), initWithFrame: rect(0.0, 0.0, WIDTH, height)] };
-    let view: Retained<NSView> = Retained::into_super(flipped);
-    let mut l = Layout { view: view.clone(), top: height - 12.0, mtm };
+    let tabs = NSTabView::initWithFrame(NSTabView::alloc(mtm), rect(12.0, 10.0, WIDTH - 24.0, HEIGHT - 16.0));
+    let content = tabs.contentRect().size;
+    // A view for each tab, with rows laid out from its top.
+    let page = |title: &str| {
+        let view = NSView::initWithFrame(NSView::alloc(mtm), rect(0.0, 0.0, content.width, content.height));
+        let item = NSTabViewItem::new();
+        item.setLabel(&ns(title));
+        item.setView(Some(&view));
+        tabs.addTabViewItem(&item);
+        Layout { view, top: content.height - 14.0, mtm }
+    };
 
     let units: Vec<&str> = Units::ALL.iter().map(|u| u.name()).collect();
     let zooms: Vec<String> = DESIGN_ZOOMS.iter().map(|z| format!("{z}%")).collect();
@@ -323,7 +296,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     c.folder.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingMiddle);
     c.disabled_apps.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingTail);
 
-    l.section("General");
+    let mut l = page("General");
     l.row("Measure shortcut:", &c.shortcut, 220.0);
     l.plain(&c.login, 280.0);
     l.plain(&c.hints, 280.0);
@@ -334,8 +307,11 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     let clear = button("Clear", sel!(clearApps:), t, mtm);
     clear.setFrame(rect(LABEL_WIDTH + 255.0, l.top, 70.0, 30.0));
     l.view.addSubview(&clear);
+    let open = button("Open Settings File", sel!(openFile:), t, mtm);
+    open.setFrame(rect(content.width - 190.0, 14.0, 170.0, 30.0));
+    l.view.addSubview(&open);
 
-    l.section("Measuring");
+    let mut l = page("Measuring");
     l.row("Units:", &c.units, 160.0);
     l.plain(&c.show_units, 280.0);
     l.row("Design zoom:", &c.design_zoom, 160.0);
@@ -348,56 +324,32 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     l.plain(&c.aspect, 280.0);
     l.plain(&c.freeze, 280.0);
 
-    l.section("Appearance");
+    let mut l = page("Colors & Loupe");
     l.row("Guide color:", &c.color, 160.0);
     l.row("Copy colors as:", &c.color_format, 160.0);
     l.plain(&c.loupe, 280.0);
     l.row("Loupe zoom:", &c.loupe_zoom, 100.0);
     l.row("Loupe vision:", &c.vision, 230.0);
 
-    l.section("Grid (O while measuring)");
-    l.row("Grid:", &c.grid, 160.0);
+    let mut l = page("Grid");
+    l.row("Grid (O while measuring):", &c.grid, 160.0);
     l.row("Square size (pt):", &c.grid_size, 80.0);
     l.row("Columns:", &c.grid_columns, 80.0);
     l.row("Gutter (pt):", &c.grid_gutter, 80.0);
     l.row("Margin (pt):", &c.grid_margin, 80.0);
 
-    l.section("Screenshots");
+    let mut l = page("Screenshots");
     l.row("Save to:", &c.folder, 200.0);
     let choose = button("Choose…", sel!(chooseFolder:), t, mtm);
     choose.setFrame(rect(LABEL_WIDTH + 240.0, l.top, 100.0, 30.0));
     l.view.addSubview(&choose);
     l.plain(&c.stamp, 300.0);
 
-    let open = button("Open Settings File", sel!(openFile:), t, mtm);
-    open.setFrame(rect(WIDTH - 190.0, 16.0, 170.0, 30.0));
-    l.view.addSubview(&open);
-
-    // The settings scroll when the window is shorter than they are.
-    let scroll = NSScrollView::initWithFrame(NSScrollView::alloc(mtm), rect(0.0, 0.0, WIDTH, window_height));
-    scroll.setHasVerticalScroller(true);
-    scroll.setAutohidesScrollers(true);
-    scroll.setDrawsBackground(false);
-    scroll.setAutoresizingMask(
-        NSAutoresizingMaskOptions::ViewWidthSizable | NSAutoresizingMaskOptions::ViewHeightSizable,
-    );
-    // The rows were laid out from the bottom up; the view is flipped, so
-    // mirror them once.
-    for sub in view.subviews().iter() {
-        let f = sub.frame();
-        sub.setFrameOrigin(NSPoint::new(f.origin.x, height - f.origin.y - f.size.height));
-    }
-    scroll.setDocumentView(Some(&view));
-    window.setContentView(Some(&scroll));
+    let root = NSView::initWithFrame(NSView::alloc(mtm), rect(0.0, 0.0, WIDTH, HEIGHT));
+    root.addSubview(&tabs);
+    window.setContentView(Some(&root));
     window.center();
     SettingsWindow { window, _target: target, c }
-}
-
-/// The window's content height: everything, or as much as fits on the
-/// screen it opens on (below the menu bar, above the Dock, with a margin).
-fn window_height(mtm: MainThreadMarker) -> f64 {
-    let available = NSScreen::mainScreen(mtm).map_or(CONTENT_HEIGHT, |s| s.visibleFrame().size.height - 60.0);
-    CONTENT_HEIGHT.min(available).max(MIN_HEIGHT)
 }
 
 /// Shows the current settings in the window (if it is open).
