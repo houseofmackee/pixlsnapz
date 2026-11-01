@@ -12,13 +12,17 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Area snapping**: drag over something and the box shrinks to its exact bounds; several objects in one drag snap to all of them. Hold ⌘ (or drag with the right mouse button) to measure exactly what you drag
 - **Keep measurements**: click to keep a distance on screen, and drag as many areas as you like. New distances stop at kept areas and guides, so you can read the gap between two objects
 - **Guides**: press V or H for a vertical or horizontal guide at the pointer; guides snap to nearby edges, show the distances between each other and to the screen edges, and move with the arrow keys
+- **Line ruler**: ⌥-drag (or press L for the line tool) to measure the length and angle of any line, with a protractor arc; hold ⇧ to snap to 45°
+- **Jump to the next edge**: ⌥ plus an arrow key moves the pointer just past the next edge, object by object
+- **One direction at a time**: press X to measure only horizontally or only vertically
 - **Crosshair**: hold ⇧ for lines across the whole screen, to check alignment
-- **Loupe**: a pixel grid magnifier next to the pointer, with the hex color of the pixel under it. Press P to copy that color
+- **Loupe**: a pixel grid magnifier next to the pointer, with the color and coordinates of the pixel under it; zoom from 4× to 32× with - and +
+- **Colors**: P copies the color under the pointer and ⌥P the average color of the last area, as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code (⇧P switches)
 - **Screenshots**: ⌘S saves the last area as a PNG on the Desktop (⇧⌘C copies it); hold ⌥ for padding around it
 - **Freeze screen**: measure a still copy of the screen, so menus and animations stay put
 - **Points or pixels**, optional units (`pt`, `px`), and the aspect ratio of areas (`16:9`)
-- **Adjustable edge tolerance** for shadows, gradients, and low-contrast edges
-- **Restore** the measurements and guides of the previous session (R)
+- **Adjustable edge tolerance** for shadows, gradients, and low-contrast edges: scroll, or press [ and ]
+- **Restore** the measurements and guides of the previous session (R), even after a restart
 - Multiple displays with different scales, including over full-screen apps
 - Six guide colors, launch at login, and a customizable global shortcut
 
@@ -37,26 +41,33 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | Move | Distances to the nearest edges |
 | Drag | Measure an area, snapped to its content |
 | ⌘ drag, right-drag | Measure an area without snapping |
-| ⇧ while dragging | Square area |
+| ⌥ drag | Measure a line: length and angle |
+| L | Line tool on or off (drag draws lines) |
+| ⇧ while dragging | Square area, or a line at a multiple of 45° |
 | Space while dragging | Move the area |
 | Click | Keep the distances at that point |
 | ⇧ (hold) | Crosshair across the whole screen |
 | V / H | Add a vertical / horizontal guide (arrow keys then move it) |
 | G | Remove all guides |
 | Arrow keys | Move the pointer by one pixel (⇧: ten points) |
+| ⌥ arrow keys | Jump to the next edge |
+| X | Measure both directions, horizontal only, or vertical only |
 | ⌘C | Copy the last size, such as `120 × 48` |
 | Return | Copy the last size and finish |
 | P | Copy the color under the pointer |
+| ⌥P | Copy the average color of the last area |
+| ⇧P | Switch the color format: hex, RGB, HSL, SwiftUI, AppKit |
 | ⌘S / ⇧⌘C | Save / copy a screenshot of the last area (⌥: with padding) |
 | Z | Loupe on or off |
+| - and + | Loupe zoom out and in |
 | F | Freeze screen on or off |
 | U | Points or pixels |
 | A | Aspect ratio on or off |
 | S | Snapping on or off |
-| [ and ] | Lower or raise the edge tolerance |
+| Scroll, [ and ] | Lower or raise the edge tolerance |
 | ⌫, ⌘Z | Remove the last measurement or guide |
 | C | Clear everything |
-| R | Restore the previous session |
+| R | Restore the previous session, also after a restart |
 | ? | Show or hide the shortcut hints |
 | Esc, right click | Finish |
 
@@ -78,7 +89,12 @@ show_units = false
 show_aspect_ratio = false
 freeze = false
 screenshot_folder = ""       # empty for the Desktop; "~/Pictures/Measurements" works too
+axes = "both"                # or "horizontal", "vertical"
+color_format = "hex"         # or "rgb", "hsl", "swiftui", "appkit"
+loupe_zoom = 8               # 4, 6, 8, 12, 16, 24, or 32
 ```
+
+The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R.
 
 ## Build and run
 
@@ -98,7 +114,7 @@ Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings fo
 ## Development
 
 ```sh
-cargo test                     # edge detection, snapping, guides, settings, and shortcut parsing
+cargo test                     # edge detection, snapping, edge jumps, lines, colors, saved sessions, settings, and shortcuts
 cargo clippy --all-targets
 ```
 

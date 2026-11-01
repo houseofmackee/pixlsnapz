@@ -3,6 +3,8 @@
 //! All coordinates here are in pixels with a top-left origin, matching the
 //! rows of the captured image.
 
+use serde::{Deserialize, Serialize};
+
 /// An RGBA8 screenshot of one display.
 #[derive(Clone)]
 pub struct Frame {
@@ -13,7 +15,7 @@ pub struct Frame {
 }
 
 /// A rectangle in pixels: `x0..x1` by `y0..y1` (end exclusive).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PxRect {
     pub x0: usize,
     pub y0: usize,
@@ -33,7 +35,7 @@ impl PxRect {
 
 /// The horizontal and vertical extent of the uniform region around a point.
 /// `left..right` and `top..bottom` are end exclusive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Cross {
     pub left: usize,
     pub right: usize,
@@ -202,6 +204,58 @@ pub fn clip_cross(
     c
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+/// The pixel to jump to from `(x, y)` in `dir`: just past the edge of the
+/// region `c` (the cross through that pixel), so repeated jumps move from
+/// object to object. Stays inside a `width` by `height` frame.
+pub fn next_edge(c: Cross, x: usize, y: usize, dir: Direction, width: usize, height: usize) -> (usize, usize) {
+    match dir {
+        Direction::Left => (c.left.saturating_sub(1), y),
+        Direction::Right => (c.right.min(width - 1), y),
+        Direction::Up => (x, c.top.saturating_sub(1)),
+        Direction::Down => (x, c.bottom.min(height - 1)),
+    }
+}
+
+/// The length of a line `dx` by `dy`.
+pub fn line_length(dx: f64, dy: f64) -> f64 {
+    dx.hypot(dy)
+}
+
+/// The angle of a line in degrees, counterclockwise from pointing right, in
+/// `-180..=180`. `dy` grows downwards, as on screen.
+pub fn line_angle(dx: f64, dy: f64) -> f64 {
+    let a = (-dy).atan2(dx).to_degrees();
+    if a <= -180.0 { a + 360.0 } else { a }
+}
+
+/// `(dx, dy)` turned to the nearest multiple of 45 degrees, keeping its length.
+pub fn snap_45(dx: f64, dy: f64) -> (f64, f64) {
+    let len = line_length(dx, dy);
+    if len == 0.0 {
+        return (0.0, 0.0);
+    }
+    let a = (line_angle(dx, dy) / 45.0).round() * 45.0;
+    let r = a.to_radians();
+    // Exact zeros for horizontal and vertical lines.
+    let clean = |v: f64| if v.abs() < 1e-9 { 0.0 } else { v };
+    (clean(len * r.cos()), clean(-len * r.sin()))
+}
+
+/// An angle for display: one decimal, without "-0".
+pub fn format_angle(a: f64) -> String {
+    let rounded = (a * 10.0).round() / 10.0;
+    let rounded = if rounded == 0.0 { 0.0 } else { rounded };
+    if rounded.fract() == 0.0 { format!("{}°", rounded as i64) } else { format!("{rounded:.1}°") }
+}
+
 /// The nearest of `candidates` within `max` of `at`, or `at`.
 pub fn snap_to(at: usize, candidates: &[usize], max: usize) -> usize {
     candidates.iter().copied().filter(|c| c.abs_diff(at) <= max).min_by_key(|c| c.abs_diff(at)).unwrap_or(at)
@@ -338,6 +392,49 @@ mod tests {
     fn snaps_to_nearby_candidates() {
         assert_eq!(snap_to(50, &[44, 53, 90], 5), 53);
         assert_eq!(snap_to(50, &[40, 60], 5), 50);
+    }
+
+    #[test]
+    fn jumps_to_the_next_edge() {
+        let f = sample();
+        // From the left margin, jumping right lands on the box, then past it.
+        let (x, y) = next_edge(f.cross(5, 20, 0), 5, 20, Direction::Right, 100, 80);
+        assert_eq!((x, y), (20, 20));
+        let (x, _) = next_edge(f.cross(x, y, 0), x, y, Direction::Right, 100, 80);
+        assert_eq!(x, 50);
+        let (x, _) = next_edge(f.cross(x, y, 0), x, y, Direction::Right, 100, 80);
+        assert_eq!(x, 99);
+        // Back to the left: just outside the box.
+        let (x, _) = next_edge(f.cross(30, 20, 0), 30, 20, Direction::Left, 100, 80);
+        assert_eq!(x, 19);
+        let (_, y) = next_edge(f.cross(30, 20, 0), 30, 20, Direction::Up, 100, 80);
+        assert_eq!(y, 9);
+        let (_, y) = next_edge(f.cross(30, 20, 0), 30, 20, Direction::Down, 100, 80);
+        assert_eq!(y, 30);
+        // At the frame edge it stays put.
+        assert_eq!(next_edge(f.cross(0, 0, 0), 0, 0, Direction::Left, 100, 80), (0, 0));
+    }
+
+    #[test]
+    fn line_geometry() {
+        assert_eq!(line_length(3.0, 4.0), 5.0);
+        assert_eq!(line_angle(10.0, 0.0), 0.0);
+        assert_eq!(line_angle(0.0, -10.0), 90.0);
+        assert_eq!(line_angle(-10.0, 0.0), 180.0);
+        assert_eq!(line_angle(0.0, 10.0), -90.0);
+        assert!((line_angle(10.0, -10.0) - 45.0).abs() < 1e-9);
+        assert_eq!(format_angle(-0.01), "0°");
+        assert_eq!(format_angle(32.46), "32.5°");
+        assert_eq!(format_angle(-90.0), "-90°");
+    }
+
+    #[test]
+    fn snaps_to_45_degrees() {
+        assert_eq!(snap_45(10.0, 1.0), (line_length(10.0, 1.0), 0.0));
+        assert_eq!(snap_45(1.0, -10.0), (0.0, -line_length(1.0, 10.0)));
+        let (dx, dy) = snap_45(10.0, -9.0);
+        assert!((dx - (-dy)).abs() < 1e-9 && dx > 0.0);
+        assert_eq!(snap_45(0.0, 0.0), (0.0, 0.0));
     }
 
     #[test]

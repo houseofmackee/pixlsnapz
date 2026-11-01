@@ -7,6 +7,20 @@ the GitHub release shows.
 
 ## [Unreleased]
 
+### Added
+
+- A line ruler: ⌥-drag, or press L for the line tool, to measure the
+  length and angle of any line, with a protractor arc. ⇧ snaps it to 45°.
+- ⌥ plus an arrow key jumps the pointer to the next edge.
+- Scrolling changes the edge tolerance.
+- Press X to measure only horizontally or only vertically.
+- Colors can be copied as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code
+  (⇧P switches), and ⌥P copies the average color of the last area.
+- The loupe shows the pointer's coordinates and zooms from 4× to 32×
+  (- and +).
+- R brings back the previous session's measurements and guides even
+  after PixlSnapz restarts.
+
 ## [0.1.0] - 2026-11-01
 
 First release: distances to the nearest edges, areas that snap to their

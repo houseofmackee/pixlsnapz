@@ -25,8 +25,13 @@ use objc2_core_graphics::CGImage;
 use objc2_foundation::{NSDictionary, NSNumber, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use crate::capture::{self, Shot};
-use crate::measure::{Cross, PxRect, aspect_ratio, clip_cross, format_length, snap_to};
-use crate::settings::{Settings, Units};
+use crate::color::{ColorFormat, average};
+use crate::items::{Display, Item, SavedItem, SavedSession};
+use crate::measure::{
+    Cross, Direction, PxRect, aspect_ratio, clip_cross, format_angle, format_length, line_angle, line_length,
+    next_edge, snap_45, snap_to,
+};
+use crate::settings::{Axes, Settings, Units};
 
 /// `NSScreenSaverWindowLevel`: above menus, the Dock and full-screen apps.
 const LEVEL: isize = 1000;
@@ -35,9 +40,13 @@ const TOAST_TIME: Duration = Duration::from_millis(1400);
 const CLICK_SLOP: f64 = 3.0;
 /// New guides snap to an edge this close (in points).
 const GUIDE_SNAP: f64 = 6.0;
-/// Pixels each side of the cursor shown in the magnifier.
-const LOUPE_RADIUS: usize = 8;
-const LOUPE_ZOOM: f64 = 8.0;
+/// About how big the magnifier is, in points.
+const LOUPE_SIZE: f64 = 136.0;
+/// Scroll distance (in points of precise, trackpad-style scrolling) per
+/// tolerance step; a mouse wheel notch is one step.
+const SCROLL_STEP: f64 = 12.0;
+/// How much one scroll step changes the edge tolerance.
+const TOLERANCE_PER_SCROLL: i32 = 4;
 /// Padding around area screenshots taken with Option held (points).
 const SCREENSHOT_PADDING: f64 = 20.0;
 
@@ -160,6 +169,17 @@ define_class!(
             self.drag_ended(event, true);
         }
 
+        // Scrolling changes the edge tolerance, like PowerToys Screen Ruler.
+        #[unsafe(method(scrollWheel:))]
+        fn scroll_wheel(&self, event: &NSEvent) {
+            let mut dy = event.scrollingDeltaY();
+            if event.isDirectionInvertedFromDevice() {
+                dy = -dy;
+            }
+            let per_step = if event.hasPreciseScrollingDeltas() { SCROLL_STEP } else { 1.0 };
+            update(|s| s.scrolled(dy / per_step));
+        }
+
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
             key_down(event);
@@ -230,10 +250,12 @@ impl OverlayView {
         blank_cursor().set();
         let p = self.location(event);
         let index = self.index();
+        let option = event.modifierFlags().contains(NSEventModifierFlags::Option);
         update(|s| {
             s.active = index;
             s.hover = Some(p);
-            s.drag = Some(Drag { start: p, end: p });
+            // The line tool, or ⌥ held, draws a line instead of an area.
+            s.drag = Some(Drag { start: p, end: p, line: s.line_tool || option });
         });
     }
 
@@ -250,6 +272,8 @@ impl OverlayView {
                     let (dx, dy) = (p.x - d.end.x, p.y - d.end.y);
                     d.start = NSPoint::new(d.start.x + dx, d.start.y + dy);
                     d.end = p;
+                } else if d.line {
+                    d.end = if shift { snap_line(d.start, p) } else { p };
                 } else {
                     d.end = if shift { square(d.start, p) } else { p };
                 }
@@ -270,7 +294,7 @@ impl OverlayView {
                 if right && moved < CLICK_SLOP {
                     close = true;
                 } else {
-                    s.finish_drag(index, d.start, d.end, no_snap);
+                    s.finish_drag(index, d, no_snap);
                 }
             }
         });
@@ -286,24 +310,19 @@ fn square(start: NSPoint, p: NSPoint) -> NSPoint {
     NSPoint::new(start.x + side.copysign(p.x - start.x), start.y + side.copysign(p.y - start.y))
 }
 
+/// The end point that turns the line from `start` to `p` to the nearest
+/// multiple of 45 degrees.
+fn snap_line(start: NSPoint, p: NSPoint) -> NSPoint {
+    let (dx, dy) = snap_45(p.x - start.x, p.y - start.y);
+    NSPoint::new(start.x + dx, start.y + dy)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Drag {
     start: NSPoint,
     end: NSPoint,
-}
-
-/// Something kept on screen, all in pixels.
-#[derive(Debug, Clone, Copy)]
-enum Item {
-    /// Distances around a clicked point.
-    Cross {
-        x: usize,
-        y: usize,
-        cross: Cross,
-    },
-    Area(PxRect),
-    VerticalGuide(usize),
-    HorizontalGuide(usize),
+    /// Draws a line rather than an area.
+    line: bool,
 }
 
 struct Overlay {
@@ -360,10 +379,13 @@ struct Session {
     /// Kept items with the index of their overlay, oldest first.
     items: Vec<(usize, Item)>,
     toast: Option<(String, Instant)>,
+    /// The line tool is on (L).
+    line_tool: bool,
+    /// Scrolling not yet turned into tolerance steps.
+    scroll: f64,
+    /// Settings changed by scrolling, saved when measuring ends.
+    settings_dirty: bool,
 }
-
-/// Items of the last session per display, for restoring.
-type Saved = Vec<(u32, Item)>;
 
 impl Session {
     fn in_pixels(&self) -> bool {
@@ -373,6 +395,41 @@ impl Session {
     fn len_text(&self, px: usize, scale: f64) -> String {
         let n = format_length(px, scale, self.in_pixels());
         if self.settings.show_units { format!("{n} {}", if self.in_pixels() { "px" } else { "pt" }) } else { n }
+    }
+
+    /// A length given in (possibly fractional) pixels.
+    fn len_text_f64(&self, px: f64, scale: f64) -> String {
+        let v = if self.in_pixels() { px } else { px / scale };
+        let rounded = (v * 10.0).round() / 10.0;
+        let n = if rounded.fract() == 0.0 { format!("{}", rounded as i64) } else { format!("{rounded:.1}") };
+        if self.settings.show_units { format!("{n} {}", if self.in_pixels() { "px" } else { "pt" }) } else { n }
+    }
+
+    /// What a cross measures in the given directions.
+    fn cross_text(&self, c: &Cross, axes: Axes, scale: f64) -> String {
+        match axes {
+            Axes::Both => self.size_text(c.width(), c.height(), scale),
+            Axes::Horizontal => self.len_text(c.width(), scale),
+            Axes::Vertical => self.len_text(c.height(), scale),
+        }
+    }
+
+    /// Length and angle of a line in pixels: ("120.5", "32.5°").
+    fn line_texts(&self, (x0, y0, x1, y1): (f64, f64, f64, f64), scale: f64) -> (String, String) {
+        let (dx, dy) = (x1 - x0, y1 - y0);
+        (self.len_text_f64(line_length(dx, dy), scale), format_angle(line_angle(dx, dy)))
+    }
+
+    fn scrolled(&mut self, steps: f64) {
+        self.scroll += steps;
+        let whole = self.scroll.trunc();
+        if whole == 0.0 {
+            return;
+        }
+        self.scroll -= whole;
+        self.settings.adjust_tolerance(whole as i32 * TOLERANCE_PER_SCROLL);
+        self.settings_dirty = true;
+        self.toast(format!("Edge tolerance: {}", self.settings.tolerance_name()));
     }
 
     fn size_text(&self, w: usize, h: usize, scale: f64) -> String {
@@ -389,8 +446,8 @@ impl Session {
         let mut h = Vec::new();
         for (_, item) in self.items.iter().filter(|(i, _)| *i == index) {
             match item {
-                Item::VerticalGuide(x) => v.push(*x),
-                Item::HorizontalGuide(y) => h.push(*y),
+                Item::VerticalGuide { x } => v.push(*x),
+                Item::HorizontalGuide { y } => h.push(*y),
                 _ => {}
             }
         }
@@ -418,12 +475,15 @@ impl Session {
         Some(self.overlays.get(self.active)?.px(self.hover?))
     }
 
-    fn finish_drag(&mut self, index: usize, start: NSPoint, end: NSPoint, no_snap: bool) {
+    fn finish_drag(&mut self, index: usize, d: Drag, no_snap: bool) {
         let Some(o) = self.overlays.get(index) else { return };
+        let (start, end) = (d.start, d.end);
         let moved = (end.x - start.x).abs().max((end.y - start.y).abs());
         let item = if moved < CLICK_SLOP {
             let (x, y) = o.px(end);
-            Item::Cross { x, y, cross: self.cross_at(index, x, y) }
+            Item::Cross { x, y, cross: self.cross_at(index, x, y), axes: self.settings.axes }
+        } else if d.line {
+            Item::Line { x0: start.x * o.scale, y0: start.y * o.scale, x1: end.x * o.scale, y1: end.y * o.scale }
         } else {
             let r = o.rect_px(start, end);
             let r =
@@ -442,29 +502,57 @@ impl Session {
         let c = o.shot.frame.cross(x, y, self.settings.tolerance);
         let max = (GUIDE_SNAP * o.scale) as usize;
         let item = if vertical {
-            Item::VerticalGuide(snap_to(x, &[c.left, c.right], max))
+            Item::VerticalGuide { x: snap_to(x, &[c.left, c.right], max) }
         } else {
-            Item::HorizontalGuide(snap_to(y, &[c.top, c.bottom], max))
+            Item::HorizontalGuide { y: snap_to(y, &[c.top, c.bottom], max) }
         };
         self.items.push((self.active, item));
     }
 
     /// The text to copy: the last kept measurement, or the one under the cursor.
     fn copy_text(&self) -> Option<String> {
-        let last = self.items.iter().rev().find_map(|(i, item)| match item {
-            Item::Area(r) => Some((*i, r.width(), r.height())),
-            Item::Cross { cross, .. } => Some((*i, cross.width(), cross.height())),
-            _ => None,
-        });
-        let (i, w, h) = match last {
-            Some(m) => m,
-            None => {
-                let (x, y) = self.hover_px()?;
-                let c = self.cross_at(self.active, x, y);
-                (self.active, c.width(), c.height())
+        let last = self.items.iter().rev().find_map(|(i, item)| {
+            let scale = self.overlays[*i].scale;
+            match item {
+                Item::Area(r) => Some(self.size_text(r.width(), r.height(), scale)),
+                Item::Cross { cross, axes, .. } => Some(self.cross_text(cross, *axes, scale)),
+                Item::Line { x0, y0, x1, y1 } => {
+                    let (len, angle) = self.line_texts((*x0, *y0, *x1, *y1), scale);
+                    Some(format!("{len}, {angle}"))
+                }
+                _ => None,
             }
-        };
-        Some(self.size_text(w, h, self.overlays[i].scale))
+        });
+        if last.is_some() {
+            return last;
+        }
+        let (x, y) = self.hover_px()?;
+        let c = self.cross_at(self.active, x, y);
+        Some(self.cross_text(&c, self.settings.axes, self.overlays[self.active].scale))
+    }
+
+    /// The last kept area, if any.
+    fn last_area(&self) -> Option<(usize, PxRect)> {
+        self.items.iter().rev().find_map(|(i, item)| match item {
+            Item::Area(r) => Some((*i, *r)),
+            _ => None,
+        })
+    }
+
+    fn displays(&self) -> Vec<Display> {
+        self.overlays
+            .iter()
+            .map(|o| Display { id: o.shot.display_id, width: o.shot.frame.width, height: o.shot.frame.height })
+            .collect()
+    }
+
+    /// Option-arrow: jumps the pointer just past the next edge.
+    fn jump(&mut self, dir: Direction) {
+        let Some((x, y)) = self.hover_px() else { return };
+        let o = &self.overlays[self.active];
+        let c = self.cross_at(self.active, x, y);
+        let (nx, ny) = next_edge(c, x, y, dir, o.shot.frame.width, o.shot.frame.height);
+        self.hover = Some(NSPoint::new((nx as f64 + 0.5) / o.scale, (ny as f64 + 0.5) / o.scale));
     }
 
     /// The last kept area, or the whole display under the cursor.
@@ -498,25 +586,29 @@ impl Session {
         }
     }
 
-    fn saved_items(&self) -> Saved {
-        self.items.iter().map(|(i, item)| (self.overlays[*i].shot.display_id, *item)).collect()
+    fn saved(&self) -> SavedSession {
+        let items = self
+            .items
+            .iter()
+            .map(|(i, item)| {
+                let shot = &self.overlays[*i].shot;
+                SavedItem { display: shot.display_id, width: shot.frame.width, height: shot.frame.height, item: *item }
+            })
+            .collect();
+        SavedSession { items }
     }
 
-    fn restore(&mut self, saved: &Saved) -> usize {
-        let mut n = 0;
-        for (display, item) in saved {
-            if let Some(i) = self.overlays.iter().position(|o| o.shot.display_id == *display) {
-                self.items.push((i, *item));
-                n += 1;
-            }
-        }
+    /// Brings back what the last session kept (also after a restart).
+    fn restore(&mut self) -> usize {
+        let placed = SavedSession::load_from(&SavedSession::path()).place(&self.displays());
+        let n = placed.len();
+        self.items.extend(placed);
         n
     }
 }
 
 thread_local! {
     static SESSION: RefCell<Option<Session>> = const { RefCell::new(None) };
-    static LAST: RefCell<Saved> = const { RefCell::new(Vec::new()) };
 }
 
 pub fn is_active() -> bool {
@@ -624,6 +716,9 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
             shift: false,
             items: Vec::new(),
             toast: None,
+            line_tool: false,
+            scroll: 0.0,
+            settings_dirty: false,
         })
     });
 
@@ -650,8 +745,13 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
 /// Ends the session.
 pub fn end() {
     let Some(session) = SESSION.with(|s| s.borrow_mut().take()) else { return };
-    if !session.items.is_empty() {
-        LAST.with(|l| *l.borrow_mut() = session.saved_items());
+    if !session.items.is_empty()
+        && let Err(e) = session.saved().save_to(&SavedSession::path())
+    {
+        tracing::warn!("saving the session: {e:#}");
+    }
+    if session.settings_dirty {
+        session.save_settings();
     }
     for o in &session.overlays {
         o.window.orderOut(None);
@@ -721,6 +821,16 @@ fn key_down(event: &NSEvent) {
             });
             return;
         }
+        KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN if option => {
+            let dir = match code {
+                KEY_LEFT => Direction::Left,
+                KEY_RIGHT => Direction::Right,
+                KEY_UP => Direction::Up,
+                _ => Direction::Down,
+            };
+            update(|s| s.jump(dir));
+            return;
+        }
         KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN => {
             update(|s| nudge(s, code, shift));
             return;
@@ -741,21 +851,44 @@ fn key_down(event: &NSEvent) {
         (false, "v") => update(|s| s.add_guide(true)),
         (false, "h") => update(|s| s.add_guide(false)),
         (false, "g") => update(|s| {
-            s.items.retain(|(_, item)| !matches!(item, Item::VerticalGuide(_) | Item::HorizontalGuide(_)));
+            s.items.retain(|(_, item)| !item.is_guide());
             s.toast("Guides cleared");
         }),
         (false, "c") => update(|s| {
             s.items.clear();
             s.toast("Cleared");
         }),
-        (false, "r") => {
-            let saved = LAST.with(|l| l.borrow().clone());
-            update(|s| {
-                let n = s.restore(&saved);
-                s.toast(if n == 0 { "Nothing to restore".to_string() } else { format!("Restored {n} items") });
-            });
-        }
+        (false, "r") => update(|s| {
+            let n = s.restore();
+            s.toast(if n == 0 { "Nothing to restore".to_string() } else { format!("Restored {n} items") });
+        }),
+        (false, "p") if shift => update(|s| {
+            s.settings.color_format = s.settings.color_format.next();
+            let name = s.settings.color_format.name();
+            s.toast(format!("Color format: {name}"));
+            s.save_settings();
+        }),
+        (false, "p") if option => copy_average_color(),
         (false, "p") => copy_color(),
+        (false, "l") => update(|s| {
+            s.line_tool = !s.line_tool;
+            s.toast(if s.line_tool { "Line tool: drag to measure length and angle" } else { "Area tool" });
+        }),
+        (false, "x") => update(|s| {
+            s.settings.axes = s.settings.axes.next();
+            let name = s.settings.axes.name();
+            s.toast(format!("Measure: {name}"));
+            s.save_settings();
+        }),
+        (false, "-") | (false, "=") | (false, "+") => update(|s| {
+            let zoom_in = chars != "-";
+            if s.settings.loupe {
+                s.settings.step_loupe_zoom(zoom_in);
+            }
+            s.settings.loupe = true;
+            s.toast(format!("Loupe: {}×", s.settings.loupe_zoom));
+            s.save_settings();
+        }),
         (false, "u") => update(|s| {
             s.settings.units = if s.in_pixels() { Units::Points } else { Units::Pixels };
             s.toast(if s.in_pixels() { "Units: pixels" } else { "Units: points" });
@@ -803,11 +936,11 @@ fn nudge(s: &mut Session, code: u16, shift: bool) {
     let (w, h) = (o.shot.frame.width as isize, o.shot.frame.height as isize);
     let (size, active) = (o.size, s.active);
     let moved_guide = match s.items.last_mut() {
-        Some((i, Item::VerticalGuide(x))) if *i == active && dx != 0.0 => {
+        Some((i, Item::VerticalGuide { x })) if *i == active && dx != 0.0 => {
             *x = (*x as isize + dx as isize * step_px).clamp(0, w) as usize;
             true
         }
-        Some((i, Item::HorizontalGuide(y))) if *i == active && dy != 0.0 => {
+        Some((i, Item::HorizontalGuide { y })) if *i == active && dy != 0.0 => {
             *y = (*y as isize + dy as isize * step_px).clamp(0, h) as usize;
             true
         }
@@ -836,18 +969,34 @@ fn copy_size() -> bool {
     true
 }
 
-/// Copies the color under the cursor as "#RRGGBB".
+/// Copies the color under the cursor in the chosen format.
 fn copy_color() {
-    let hex = SESSION.with(|s| {
+    let text = SESSION.with(|s| {
         let s = s.borrow();
         let s = s.as_ref()?;
         let (x, y) = s.hover_px()?;
-        let [r, g, b] = s.overlays[s.active].shot.frame.pixel(x, y);
-        Some(format!("#{r:02X}{g:02X}{b:02X}"))
+        Some(s.settings.color_format.format(s.overlays[s.active].shot.frame.pixel(x, y)))
     });
-    if let Some(hex) = hex {
-        set_clipboard_string(&hex);
-        update(|s| s.toast(format!("Copied {hex}")));
+    if let Some(text) = text {
+        set_clipboard_string(&text);
+        update(|s| s.toast(format!("Copied {text}")));
+    }
+}
+
+/// Copies the average color of the last area in the chosen format.
+fn copy_average_color() {
+    let text = SESSION.with(|s| {
+        let s = s.borrow();
+        let s = s.as_ref()?;
+        let (i, r) = s.last_area()?;
+        average(&s.overlays[i].shot.frame, r).map(|c| s.settings.color_format.format(c))
+    });
+    match text {
+        Some(text) => {
+            set_clipboard_string(&text);
+            update(|s| s.toast(format!("Copied average {text}")));
+        }
+        None => update(|s| s.toast("Drag over an area first")),
     }
 }
 
@@ -977,27 +1126,81 @@ fn dark() -> Retained<NSColor> {
 
 /// Lines from edge to edge through the point, with end ticks and a label
 /// for each direction.
-fn draw_cross(s: &Session, o: &Overlay, x: usize, y: usize, c: &Cross, rgb: [f64; 3]) {
+fn draw_cross(s: &Session, o: &Overlay, x: usize, y: usize, c: &Cross, axes: Axes, rgb: [f64; 3]) {
     let (cx, cy) = ((x as f64 + 0.5) / o.scale, (y as f64 + 0.5) / o.scale);
     let (l, r) = (o.pt(c.left), o.pt(c.right));
     let (t, b) = (o.pt(c.top), o.pt(c.bottom));
     let path = NSBezierPath::bezierPath();
     path.setLineWidth(1.0);
-    line(&path, (l, cy), (r, cy));
-    line(&path, (cx, t), (cx, b));
     let tick = 5.0;
-    for ex in [l, r] {
-        line(&path, (ex, cy - tick), (ex, cy + tick));
+    if axes.horizontal() {
+        line(&path, (l, cy), (r, cy));
+        for ex in [l, r] {
+            line(&path, (ex, cy - tick), (ex, cy + tick));
+        }
     }
-    for ey in [t, b] {
-        line(&path, (cx - tick, ey), (cx + tick, ey));
+    if axes.vertical() {
+        line(&path, (cx, t), (cx, b));
+        for ey in [t, b] {
+            line(&path, (cx - tick, ey), (cx + tick, ey));
+        }
     }
     color(rgb, 1.0).setStroke();
     path.stroke();
 
     let accent = color(rgb, 1.0);
-    let text = s.size_text(c.width(), c.height(), o.scale);
-    pill(&text, NSPoint::new(cx + 10.0, cy + 10.0), o.size, 12.0, &accent);
+    pill(&s.cross_text(c, axes, o.scale), NSPoint::new(cx + 10.0, cy + 10.0), o.size, 12.0, &accent);
+}
+
+/// A measured line with end ticks, a protractor arc from the horizontal at
+/// its start, and its length and angle. Coordinates in pixels.
+fn draw_line(s: &Session, o: &Overlay, (x0, y0, x1, y1): (f64, f64, f64, f64), rgb: [f64; 3]) {
+    let (ax, ay, bx, by) = (x0 / o.scale, y0 / o.scale, x1 / o.scale, y1 / o.scale);
+    let len_pt = line_length(bx - ax, by - ay);
+    let accent = color(rgb, 1.0);
+    let path = NSBezierPath::bezierPath();
+    path.setLineWidth(1.5);
+    line(&path, (ax, ay), (bx, by));
+    if len_pt > 0.0 {
+        // Ticks across both ends.
+        let (nx, ny) = (-(by - ay) / len_pt * 5.0, (bx - ax) / len_pt * 5.0);
+        for (px, py) in [(ax, ay), (bx, by)] {
+            line(&path, (px - nx, py - ny), (px + nx, py + ny));
+        }
+    }
+    accent.setStroke();
+    path.stroke();
+
+    // Protractor: a dashed horizontal reference and an arc to the line.
+    let angle = line_angle(bx - ax, by - ay);
+    let radius = 28.0f64.min(len_pt * 0.6);
+    if radius > 8.0 && angle.abs() > 0.5 && (angle.abs() - 180.0).abs() > 0.5 {
+        let reference = NSBezierPath::bezierPath();
+        reference.setLineWidth(1.0);
+        let dash = [3.0f64, 3.0];
+        // SAFETY: `dash` holds two values.
+        unsafe { reference.setLineDash_count_phase(dash.as_ptr().cast_mut().cast(), 2, 0.0) };
+        let dir = if angle.abs() > 90.0 { -1.0 } else { 1.0 };
+        line(&reference, (ax, ay), (ax + dir * (radius + 10.0), ay));
+        color(rgb, 0.7).setStroke();
+        reference.stroke();
+        let arc = NSBezierPath::bezierPath();
+        arc.setLineWidth(1.0);
+        let start = if dir > 0.0 { 0.0 } else { 180.0f64.copysign(angle) };
+        let steps = 24;
+        for i in 0..=steps {
+            let a = (start + (angle - start) * i as f64 / steps as f64).to_radians();
+            let p = NSPoint::new(ax + radius * a.cos(), ay - radius * a.sin());
+            if i == 0 { arc.moveToPoint(p) } else { arc.lineToPoint(p) }
+        }
+        accent.setStroke();
+        arc.stroke();
+    }
+
+    let (len, angle_text) = s.line_texts((x0, y0, x1, y1), o.scale);
+    let text = format!("{len}  ∠ {angle_text}");
+    let mid = NSPoint::new((ax + bx) / 2.0, (ay + by) / 2.0);
+    pill_centered(&text, NSPoint::new(mid.x, mid.y - 16.0), o.size, 12.0, &accent);
 }
 
 fn draw_area(s: &Session, o: &Overlay, r: PxRect, rgb: [f64; 3]) {
@@ -1103,9 +1306,12 @@ fn draw_alignment(o: &Overlay, x: usize, y: usize, rgb: [f64; 3]) {
     path.stroke();
 }
 
-fn draw_loupe(o: &Overlay, x: usize, y: usize, cursor: NSPoint, rgb: [f64; 3]) {
-    let n = LOUPE_RADIUS * 2 + 1;
-    let side = n as f64 * LOUPE_ZOOM;
+fn draw_loupe(s: &Session, o: &Overlay, x: usize, y: usize, cursor: NSPoint, rgb: [f64; 3]) {
+    let zoom = f64::from(s.settings.loupe_zoom.max(1));
+    // An odd number of pixels, so the one under the pointer is in the middle.
+    let radius = ((LOUPE_SIZE / zoom / 2.0).floor() as usize).max(1);
+    let n = radius * 2 + 1;
+    let side = n as f64 * zoom;
     let mut origin = NSPoint::new(cursor.x + 24.0, cursor.y + 36.0);
     if origin.x + side > o.size.width - 4.0 {
         origin.x = cursor.x - 24.0 - side;
@@ -1116,8 +1322,8 @@ fn draw_loupe(o: &Overlay, x: usize, y: usize, cursor: NSPoint, rgb: [f64; 3]) {
     let dest = NSRect::new(origin, NSSize::new(side, side));
 
     // Source rectangle in the image's points (NSImage: bottom-left origin).
-    let src_x = x as f64 - LOUPE_RADIUS as f64;
-    let src_y = y as f64 - LOUPE_RADIUS as f64;
+    let src_x = x as f64 - radius as f64;
+    let src_y = y as f64 - radius as f64;
     let src = NSRect::new(
         NSPoint::new(src_x / o.scale, o.size.height - (src_y + n as f64) / o.scale),
         NSSize::new(n as f64 / o.scale, n as f64 / o.scale),
@@ -1141,21 +1347,21 @@ fn draw_loupe(o: &Overlay, x: usize, y: usize, cursor: NSPoint, rgb: [f64; 3]) {
             None,
         )
     };
-    // Pixel grid.
+    // Pixel grid, when the pixels are big enough to see it.
     let grid = NSBezierPath::bezierPath();
     grid.setLineWidth(0.5);
-    for i in 1..n {
-        let d = i as f64 * LOUPE_ZOOM;
+    for i in (1..n).filter(|_| zoom >= 6.0) {
+        let d = i as f64 * zoom;
         line(&grid, (origin.x + d, origin.y), (origin.x + d, origin.y + side));
         line(&grid, (origin.x, origin.y + d), (origin.x + side, origin.y + d));
     }
     NSColor::colorWithWhite_alpha(0.5, 0.25).setStroke();
     grid.stroke();
     // The pixel under the cursor.
-    let at = LOUPE_RADIUS as f64 * LOUPE_ZOOM;
+    let at = radius as f64 * zoom;
     let mark = NSBezierPath::bezierPathWithRect(NSRect::new(
         NSPoint::new(origin.x + at, origin.y + at),
-        NSSize::new(LOUPE_ZOOM, LOUPE_ZOOM),
+        NSSize::new(zoom, zoom),
     ));
     mark.setLineWidth(1.5);
     color(rgb, 1.0).setStroke();
@@ -1166,13 +1372,23 @@ fn draw_loupe(o: &Overlay, x: usize, y: usize, cursor: NSPoint, rgb: [f64; 3]) {
     NSColor::colorWithWhite_alpha(1.0, 0.75).setStroke();
     border.stroke();
 
-    let [r, g, b] = o.shot.frame.pixel(x, y);
-    pill(&format!("#{r:02X}{g:02X}{b:02X}"), NSPoint::new(origin.x, origin.y + side + 5.0), o.size, 11.0, &dark());
+    // The color in the chosen format, and where the pointer is.
+    let format = match s.settings.color_format {
+        // The long code formats would not fit; they show as hex here.
+        ColorFormat::SwiftUI | ColorFormat::AppKit => ColorFormat::Hex,
+        f => f,
+    };
+    let at = |px: usize| format_length(px, o.scale, s.in_pixels());
+    let text = format!("{}   {}, {}", format.format(o.shot.frame.pixel(x, y)), at(x), at(y));
+    pill(&text, NSPoint::new(origin.x, origin.y + side + 5.0), o.size, 11.0, &dark());
 }
 
-const HINTS: &str = "Drag: area  ·  ⌘/right-drag: no snap  ·  ⇧: crosshair  ·  Click: keep  ·  V H: guides  ·  \
-                     ⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  P color  ·  Z loupe  ·  F freeze  ·  U units  ·  [ ] tolerance  ·  \
-                     ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done";
+const HINTS: [&str; 2] = [
+    "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  ⇧: crosshair, square, 45°  ·  Click: keep  ·  \
+     V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance",
+    "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  Z loupe  ·  - + zoom  ·  \
+     F freeze  ·  U units  ·  ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done",
+];
 
 fn draw(index: usize) {
     SESSION.with(|s| {
@@ -1189,30 +1405,39 @@ fn draw(index: usize) {
         for (_, item) in s.items.iter().filter(|(i, _)| *i == index) {
             match item {
                 Item::Area(r) => draw_area(s, o, *r, rgb),
-                Item::Cross { x, y, cross } => draw_cross(s, o, *x, *y, cross, rgb),
-                Item::VerticalGuide(_) | Item::HorizontalGuide(_) => {}
+                Item::Cross { x, y, cross, axes } => draw_cross(s, o, *x, *y, cross, *axes, rgb),
+                Item::Line { x0, y0, x1, y1 } => draw_line(s, o, (*x0, *y0, *x1, *y1), rgb),
+                Item::VerticalGuide { .. } | Item::HorizontalGuide { .. } => {}
             }
         }
 
         if index == s.active {
             if let Some(d) = s.drag {
-                draw_area(s, o, o.rect_px(d.start, d.end), rgb);
+                if d.line {
+                    let px = |v: f64| v * o.scale;
+                    draw_line(s, o, (px(d.start.x), px(d.start.y), px(d.end.x), px(d.end.y)), rgb);
+                } else {
+                    draw_area(s, o, o.rect_px(d.start, d.end), rgb);
+                }
             } else if let Some(p) = s.hover {
                 let (x, y) = o.px(p);
                 if s.shift {
                     draw_alignment(o, x, y, rgb);
                 }
                 let c = s.cross_at(index, x, y);
-                draw_cross(s, o, x, y, &c, rgb);
+                draw_cross(s, o, x, y, &c, s.settings.axes, rgb);
                 if s.settings.loupe {
-                    draw_loupe(o, x, y, p, rgb);
+                    draw_loupe(s, o, x, y, p, rgb);
                 }
             }
         }
 
         if s.settings.show_hints {
-            let w = pill_size(HINTS, 11.0).width;
-            pill(HINTS, NSPoint::new((o.size.width - w) / 2.0, o.size.height - 36.0), o.size, 11.0, &dark());
+            for (row, hint) in HINTS.iter().enumerate() {
+                let w = pill_size(hint, 11.0).width;
+                let y = o.size.height - 58.0 + row as f64 * 22.0;
+                pill(hint, NSPoint::new((o.size.width - w) / 2.0, y), o.size, 11.0, &dark());
+            }
         }
 
         if index == s.active

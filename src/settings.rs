@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::color::ColorFormat;
 use crate::shortcut::Shortcut;
 
 /// Tolerance steps offered in the menu and with [ and ] in the overlay.
@@ -21,6 +22,45 @@ pub const COLORS: &[(&str, &str)] = &[
 ];
 
 pub const TOLERANCE_STEPS: &[(u8, &str)] = &[(0, "Exact"), (8, "Low"), (24, "Medium"), (48, "High"), (96, "Very High")];
+
+/// Loupe magnifications, in screen points per pixel.
+pub const LOUPE_ZOOMS: &[u32] = &[4, 6, 8, 12, 16, 24, 32];
+
+/// Which distances the pointer measures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Axes {
+    #[default]
+    Both,
+    Horizontal,
+    Vertical,
+}
+
+impl Axes {
+    pub fn next(self) -> Axes {
+        match self {
+            Axes::Both => Axes::Horizontal,
+            Axes::Horizontal => Axes::Vertical,
+            Axes::Vertical => Axes::Both,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Axes::Both => "Both directions",
+            Axes::Horizontal => "Horizontal only",
+            Axes::Vertical => "Vertical only",
+        }
+    }
+
+    pub fn horizontal(self) -> bool {
+        self != Axes::Vertical
+    }
+
+    pub fn vertical(self) -> bool {
+        self != Axes::Horizontal
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -54,6 +94,12 @@ pub struct Settings {
     pub freeze: bool,
     /// Where screenshots of areas are saved; empty for the Desktop.
     pub screenshot_folder: String,
+    /// Which distances the pointer measures.
+    pub axes: Axes,
+    /// How colors are copied.
+    pub color_format: ColorFormat,
+    /// Loupe magnification (one of `LOUPE_ZOOMS`).
+    pub loupe_zoom: u32,
 }
 
 impl Default for Settings {
@@ -70,6 +116,9 @@ impl Default for Settings {
             show_aspect_ratio: false,
             freeze: false,
             screenshot_folder: String::new(),
+            axes: Axes::Both,
+            color_format: ColorFormat::Hex,
+            loupe_zoom: 8,
         }
     }
 }
@@ -149,6 +198,24 @@ impl Settings {
         }
     }
 
+    /// Moves the tolerance by `delta`, within 0 to 255.
+    pub fn adjust_tolerance(&mut self, delta: i32) {
+        self.tolerance = (i32::from(self.tolerance) + delta).clamp(0, 255) as u8;
+    }
+
+    /// The next loupe zoom step in or out.
+    pub fn step_loupe_zoom(&mut self, zoom_in: bool) {
+        let current = self.loupe_zoom;
+        let next = if zoom_in {
+            LOUPE_ZOOMS.iter().copied().find(|&z| z > current)
+        } else {
+            LOUPE_ZOOMS.iter().rev().copied().find(|&z| z < current)
+        };
+        if let Some(z) = next {
+            self.loupe_zoom = z;
+        }
+    }
+
     pub fn tolerance_name(&self) -> String {
         TOLERANCE_STEPS
             .iter()
@@ -207,6 +274,30 @@ mod tests {
         s.step_tolerance(false);
         assert_eq!(s.tolerance, 24);
         assert_eq!(s.tolerance_name(), "Medium");
+    }
+
+    #[test]
+    fn adjusts_tolerance_and_zoom() {
+        let mut s = Settings { tolerance: 250, ..Settings::default() };
+        s.adjust_tolerance(15);
+        assert_eq!(s.tolerance, 255);
+        s.adjust_tolerance(-300);
+        assert_eq!(s.tolerance, 0);
+        s.loupe_zoom = 8;
+        s.step_loupe_zoom(true);
+        assert_eq!(s.loupe_zoom, 12);
+        s.loupe_zoom = 4;
+        s.step_loupe_zoom(false);
+        assert_eq!(s.loupe_zoom, 4);
+        s.loupe_zoom = 10;
+        s.step_loupe_zoom(false);
+        assert_eq!(s.loupe_zoom, 8);
+    }
+
+    #[test]
+    fn axes_cycle() {
+        assert_eq!(Axes::Both.next().next().next(), Axes::Both);
+        assert!(Axes::Horizontal.horizontal() && !Axes::Horizontal.vertical());
     }
 
     #[test]

@@ -10,7 +10,7 @@ mod overlay;
 use std::process::ExitCode;
 
 use objc2_foundation::{NSDistributedNotificationCenter, NSString};
-use pixlsnapz::{measure, settings, shortcut};
+use pixlsnapz::{color, items, measure, settings, shortcut};
 
 const USAGE: &str = "\
 PixlSnapz: measure anything on your screen

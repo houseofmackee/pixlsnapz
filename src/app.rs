@@ -14,9 +14,10 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSDistributedNotificationCenter, NSNotification, NSObject, NSObjectProtocol, NSString, NSURL};
 
+use crate::color::ColorFormat;
 use crate::hotkeys::{HotkeyAction, Hotkeys};
 use crate::overlay::{self, StartError};
-use crate::settings::{COLORS, Settings, TOLERANCE_STEPS, Units};
+use crate::settings::{Axes, COLORS, Settings, TOLERANCE_STEPS, Units};
 use crate::shortcut::{CMD, CONTROL, OPTION, SHIFT, Shortcut};
 use crate::{capture, login_item};
 
@@ -40,6 +41,9 @@ const QUIT: isize = 12;
 const UNITS_BASE: isize = 100;
 const TOLERANCE_BASE: isize = 200;
 const COLOR_BASE: isize = 300;
+const FORMAT_BASE: isize = 400;
+const AXES_BASE: isize = 500;
+const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
 
 define_class!(
     #[unsafe(super(NSObject))]
@@ -346,6 +350,14 @@ fn build_menu(menu: &NSMenu, target: &Target) {
     for (i, (name, hex)) in COLORS.iter().enumerate() {
         check(&colors, name, COLOR_BASE + i as isize, s.color.eq_ignore_ascii_case(hex), target);
     }
+    let formats = submenu(menu, "Color Format");
+    for (i, f) in ColorFormat::ALL.iter().enumerate() {
+        check(&formats, f.name(), FORMAT_BASE + i as isize, s.color_format == *f, target);
+    }
+    let directions = submenu(menu, "Measure Directions");
+    for (i, a) in AXES.iter().enumerate() {
+        check(&directions, a.name(), AXES_BASE + i as isize, s.axes == *a, target);
+    }
     menu.addItem(&NSMenuItem::separatorItem(mtm));
     check(menu, "Snap Areas to Content", SNAP, s.snap_areas, target);
     check(menu, "Freeze Screen While Measuring", FREEZE, s.freeze, target);
@@ -419,6 +431,12 @@ fn menu_action(tag: isize) {
         }
         t if (COLOR_BASE..COLOR_BASE + COLORS.len() as isize).contains(&t) => {
             change_settings(|s| s.color = COLORS[(t - COLOR_BASE) as usize].1.to_string())
+        }
+        t if (FORMAT_BASE..FORMAT_BASE + ColorFormat::ALL.len() as isize).contains(&t) => {
+            change_settings(|s| s.color_format = ColorFormat::ALL[(t - FORMAT_BASE) as usize])
+        }
+        t if (AXES_BASE..AXES_BASE + AXES.len() as isize).contains(&t) => {
+            change_settings(|s| s.axes = AXES[(t - AXES_BASE) as usize])
         }
         _ => {}
     }
