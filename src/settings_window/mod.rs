@@ -147,6 +147,7 @@ struct Controls {
     stamp: Retained<NSButton>,
     check_updates: Retained<NSButton>,
     smooth: Retained<NSButton>,
+    elements: Retained<NSButton>,
 }
 
 struct SettingsWindow {
@@ -388,6 +389,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
         stamp: checkbox("Draw the measurements into screenshots", t, mtm),
         check_updates: checkbox("Check for updates automatically", t, mtm),
         smooth: checkbox("Smooth edges for photos and gradients (N)", t, mtm),
+        elements: checkbox("Snap to buttons and fields (⌃)", t, mtm),
     };
     c.ppi.setPlaceholderString(Some(&ns(&t!("Automatic"))));
     // The slider describes its own value (below); the label repeats it.
@@ -424,6 +426,11 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     l.row("Measure:", &c.axes, 160.0);
     l.plain(&c.aspect, 280.0);
     l.plain(&c.freeze, 280.0);
+    c.elements.setToolTip(Some(&ns(&t!(
+        "Hold ⌃ over a window to measure the button, field, or image under the pointer. Needs Accessibility \
+         permission (System Settings > Privacy & Security)."
+    ))));
+    l.plain(&c.elements, 300.0);
 
     let mut l = page(TAB_TITLES[2]);
     l.row("Guide color:", &c.color, 160.0);
@@ -521,6 +528,7 @@ pub fn refresh() {
         c.vision.selectItemAtIndex(Vision::ALL.iter().position(|v| *v == s.vision).unwrap_or(0) as isize);
         set_check(&c.stamp, s.stamp_screenshots);
         set_check(&c.smooth, s.smooth_edges);
+        set_check(&c.elements, s.element_snapping);
         // Sparkle keeps this setting; builds without Sparkle cannot update.
         set_check(&c.check_updates, crate::updates::checks_automatically());
         c.check_updates.setEnabled(crate::updates::available());
@@ -570,6 +578,12 @@ fn controls_changed() {
         s.vision = selected(&c.vision, &Vision::ALL, s.vision);
         s.stamp_screenshots = is_on(&c.stamp);
         s.smooth_edges = is_on(&c.smooth);
+        let elements = is_on(&c.elements);
+        // Turning it on asks for Accessibility permission (macOS's prompt).
+        if elements && !s.element_snapping {
+            crate::elements::trusted(true);
+        }
+        s.element_snapping = elements;
         if crate::updates::available() {
             crate::updates::set_checks_automatically(is_on(&c.check_updates));
         }

@@ -51,6 +51,8 @@ pub struct WindowFrame {
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    /// The app the window belongs to.
+    pub pid: i32,
 }
 
 /// Other apps' on-screen windows, front to back: normal and floating ones
@@ -83,7 +85,7 @@ pub fn window_frames() -> Vec<WindowFrame> {
         };
         let layer = layer.map_or(0, |n| n.integerValue() as i64);
         if !(0..dock).contains(&layer)
-            || pid.is_some_and(|p| p.integerValue() as i64 == own)
+            || pid.as_ref().is_some_and(|p| p.integerValue() as i64 == own)
             || alpha.is_some_and(|a| a.doubleValue() <= 0.0)
         {
             continue;
@@ -104,6 +106,7 @@ pub fn window_frames() -> Vec<WindowFrame> {
                 y: rect.origin.y,
                 width: rect.size.width,
                 height: rect.size.height,
+                pid: pid.map_or(0, |p| p.intValue()),
             });
         }
     }

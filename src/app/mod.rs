@@ -360,6 +360,21 @@ pub fn pick_color() {
     report_start(overlay::pick_color(mtm()));
 }
 
+/// For the Shortcuts actions (macos/intents/Intents.swift), which run in
+/// this process on the main thread: runs a `pixlsnapz://` link.
+///
+/// # Safety
+/// `url` is null or a NUL-terminated string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn pixlsnapz_open_url(url: *const std::ffi::c_char) {
+    if url.is_null() || MainThreadMarker::new().is_none() {
+        return;
+    }
+    // SAFETY: the caller passes a NUL-terminated string.
+    let url = unsafe { std::ffi::CStr::from_ptr(url) }.to_string_lossy().into_owned();
+    open_pixlsnapz_url(&url);
+}
+
 /// Runs a `pixlsnapz://measure?set=…` or `pixlsnapz://settings?tab=…` link.
 fn open_pixlsnapz_url(url: &str) {
     use crate::integrations::{UrlCommand, parse_url};
@@ -379,6 +394,7 @@ fn open_pixlsnapz_url(url: &str) {
             }
         }
         Some(UrlCommand::PickColor) => pick_color(),
+        Some(UrlCommand::Ruler { vertical }) => crate::rulers::new_ruler(vertical, mtm()),
         Some(UrlCommand::Colors) => {
             overlay::end_measuring();
             settings_window::show_colors(mtm());

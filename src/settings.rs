@@ -244,6 +244,9 @@ pub struct Settings {
     pub color_shortcut: String,
     /// Hold these modifier keys to measure until they are released.
     pub hold_keys: HoldKeys,
+    /// ⌃ snaps to buttons, fields, and other elements inside windows, not
+    /// just windows (needs Accessibility permission).
+    pub element_snapping: bool,
 }
 
 impl Default for Settings {
@@ -283,6 +286,7 @@ impl Default for Settings {
             overlay_y: 0.0,
             color_shortcut: "shift+cmd+2".into(),
             hold_keys: HoldKeys::Off,
+            element_snapping: false,
         }
     }
 }

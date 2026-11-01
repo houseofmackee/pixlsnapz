@@ -176,6 +176,12 @@ pub(super) struct Session {
     /// Started by holding the hold-to-measure keys: those keys do not count
     /// as ⌃ or ⌥ here, and releasing them ends measuring.
     pub(super) peek: bool,
+    /// What ⌃ highlights at the pointer: an element or window frame.
+    pub(super) control_frame: Option<PxRect>,
+    /// Live mode (⇧F): edges follow the screen.
+    pub(super) live: bool,
+    pub(super) capturing: Option<super::live::Capturing>,
+    pub(super) last_capture: Option<Instant>,
 }
 
 impl Session {
@@ -210,21 +216,41 @@ impl Session {
             naming: None,
             picking: false,
             peek: false,
+            control_frame: None,
+            live: false,
+            capturing: None,
+            last_capture: None,
         }
     }
 
     /// The frontmost other window under `p` (points) on overlay `index`, as
     /// a box in that display's pixels.
+    /// ⌃: the element under `p` (with element snapping on and permission),
+    /// or else the window.
     pub(super) fn window_at(&self, index: usize, p: NSPoint) -> Option<PxRect> {
         let o = self.overlays.get(index)?;
         let (gx, gy) = (p.x + o.cg_origin.0, p.y + o.cg_origin.1);
-        let w = self.windows.iter().find(|w| gx >= w.x && gx < w.x + w.width && gy >= w.y && gy < w.y + w.height)?;
+        let window =
+            self.windows.iter().find(|w| gx >= w.x && gx < w.x + w.width && gy >= w.y && gy < w.y + w.height)?;
+        let element = (self.settings.element_snapping && crate::elements::trusted(false))
+            .then(|| crate::elements::element_at(window.pid, gx, gy, window))
+            .flatten();
+        let w = element.as_ref().unwrap_or(window);
         let px = |v: f64| (v * o.scale).round().max(0.0) as usize;
         let (x0, y0) = (w.x - o.cg_origin.0, w.y - o.cg_origin.1);
         Some(o.shot.frame.clamp(PxRect { x0: px(x0), y0: px(y0), x1: px(x0 + w.width), y1: px(y0 + w.height) }))
     }
 
     /// ⌃-click: keeps the window under `p` as a box.
+    /// Looks up what ⌃ highlights at the pointer (an Accessibility call for
+    /// elements), for drawing to use without asking again.
+    pub(super) fn update_control_frame(&mut self) {
+        self.control_frame = match self.hover.filter(|_| self.control && !self.picking) {
+            Some(p) => self.window_at(self.active, p),
+            None => None,
+        };
+    }
+
     pub(super) fn keep_window(&mut self, index: usize, p: NSPoint) {
         if let Some(r) = self.window_at(index, p).filter(|r| r.width() > 0 && r.height() > 0) {
             self.items.push((index, Item::Area(r)));

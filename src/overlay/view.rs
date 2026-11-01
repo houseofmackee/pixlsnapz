@@ -159,6 +159,7 @@ define_class!(
                 // Held to measure, they are not ⌥ or ⌃ here.
                 s.option = option && !s.peek;
                 s.control = control && !s.peek;
+                s.update_control_frame();
             });
         }
     }
@@ -215,6 +216,7 @@ impl OverlayView {
             s.shift = shift;
             s.option = option && !s.peek;
             s.control = control && !s.peek;
+            s.update_control_frame();
         });
     }
 

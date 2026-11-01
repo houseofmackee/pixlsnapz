@@ -19,6 +19,10 @@ cp target/release/pixlsnapz "$APP/Contents/MacOS/pixlsnapz"
 cp macos/Info.plist "$APP/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
 cp macos/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# The Shortcuts actions' metadata, made by build.rs.
+if [ -d target/release/Metadata.appintents ]; then
+    ditto target/release/Metadata.appintents "$APP/Contents/Resources/Metadata.appintents"
+fi
 # Translations (en.lproj is the template, which also tells macOS that
 # English is supported).
 for lproj in macos/*.lproj; do

@@ -92,6 +92,12 @@
 "Click: copy color  ·  ⇧P format  ·  - + zoom  ·  Esc: cancel" = "Clic: copiar color  ·  ⇧P formato  ·  - + zoom  ·  Esc: cancelar";
 
 /* src/app/menu.rs */
+"Close All Rulers" = "Cerrar todas las reglas";
+
+/* src/rulers.rs */
+"Close Ruler" = "Cerrar regla";
+
+/* src/app/menu.rs */
 "Color" = "Color";
 
 /* src/app/menu.rs */
@@ -286,6 +292,9 @@
 /* src/settings_window/mod.rs */
 "Hold to measure:" = "Mantener para medir:";
 
+/* src/settings_window/mod.rs */
+"Hold ⌃ over a window to measure the button, field, or image under the pointer. Needs Accessibility permission (System Settings > Privacy & Security)." = "Mantén ⌃ sobre una ventana para medir el botón, campo o imagen bajo el puntero. Requiere permiso de accesibilidad (Ajustes del Sistema > Privacidad y seguridad).";
+
 /* src/settings.rs */
 "Horizontal only" = "Solo horizontal";
 
@@ -309,6 +318,12 @@
 
 /* src/overlay/keys.rs */
 "Line tool: drag to measure length and angle" = "Herramienta de línea: arrastra para medir longitud y ángulo";
+
+/* src/overlay/live.rs */
+"Live off: the screen as it was" = "En vivo desactivado: la pantalla como estaba";
+
+/* src/overlay/live.rs */
+"Live: edges follow the screen as it changes" = "En vivo: los bordes siguen la pantalla cuando cambia";
 
 /* src/overlay/keys.rs */
 "Loupe" = "Lupa";
@@ -372,6 +387,12 @@
 
 /* src/overlay/mod.rs */
 "Move the pointer to measure the distances to the nearest edges; drag to measure an area. Command-C copies the measurement, Escape finishes." = "Mueve el puntero para medir las distancias a los bordes más cercanos; arrastra para medir un área. Comando-C copia la medida, Escape termina.";
+
+/* src/app/menu.rs */
+"New Horizontal Ruler" = "Nueva regla horizontal";
+
+/* src/app/menu.rs */
+"New Vertical Ruler" = "Nueva regla vertical";
 
 /* src/settings_window/mod.rs */
 "No apps" = "Ninguna app";
@@ -490,6 +511,15 @@
 /* src/overlay/draw.rs */
 "Return: save  ·  Esc: cancel" = "Retorno: guardar  ·  Esc: cancelar";
 
+/* src/rulers.rs */
+"Rotate" = "Girar";
+
+/* src/rulers.rs */
+"Ruler" = "Regla";
+
+/* src/app/menu.rs */
+"Rulers" = "Reglas";
+
 /* src/settings_window/colors.rs */
 "Save" = "Guardar";
 
@@ -583,6 +613,9 @@
 /* src/settings_window/mod.rs */
 "Snap areas to their content" = "Ajustar las áreas a su contenido";
 
+/* src/settings_window/mod.rs */
+"Snap to buttons and fields (⌃)" = "Ajustar a botones y campos (⌃)";
+
 /* src/settings.rs */
 "Square Grid" = "Cuadrícula cuadrada";
 
@@ -611,7 +644,7 @@
 "Type a shortcut (⌫ none, Esc cancels)" = "Escribe un atajo (⌫ ninguno, Esc cancela)";
 
 /* src/overlay/draw.rs */
-"U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast" = "U unidades  ·  O cuadrícula  ·  F congelar  ·  Z lupa  ·  - + zoom  ·  ⇧Z visión  ·  D ⇧D zoom del diseño  ·  I superposición  ·  P color  ·  ⇧P formato  ·  ⌥P promedio  ·  K contraste";
+"U units  ·  O grid  ·  F freeze  ·  ⇧F live  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast" = "U unidades  ·  O cuadrícula  ·  F congelar  ·  ⇧F en vivo  ·  Z lupa  ·  - + zoom  ·  ⇧Z visión  ·  D ⇧D zoom del diseño  ·  I superposición  ·  P color  ·  ⇧P formato  ·  ⌥P promedio  ·  K contraste";
 
 /* src/app/menu.rs */
 "Units" = "Unidades";

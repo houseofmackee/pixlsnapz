@@ -50,6 +50,9 @@ pub(super) const OVERLAY_SHOW: isize = 19;
 pub(super) const OVERLAY_REMOVE: isize = 20;
 pub(super) const PICK_COLOR: isize = 21;
 pub(super) const COLORS_WINDOW: isize = 22;
+pub(super) const RULER_HORIZONTAL: isize = 23;
+pub(super) const RULER_VERTICAL: isize = 24;
+pub(super) const RULERS_CLOSE: isize = 25;
 pub(super) const SIZE_FORMAT_BASE: isize = 900;
 pub(super) const SET_BASE: isize = 1000;
 pub(super) const DELETE_SET_BASE: isize = 1100;
@@ -129,6 +132,13 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
             t!("Turn On Shortcut in {name}", name)
         };
         item(menu, &title, TOGGLE_APP, target);
+    }
+    let rulers = submenu(menu, "Rulers");
+    item(&rulers, "New Horizontal Ruler", RULER_HORIZONTAL, target);
+    item(&rulers, "New Vertical Ruler", RULER_VERTICAL, target);
+    if crate::rulers::count() > 0 {
+        rulers.addItem(&NSMenuItem::separatorItem(mtm));
+        item(&rulers, "Close All Rulers", RULERS_CLOSE, target);
     }
     item(menu, "Colors…", COLORS_WINDOW, target);
     let recent = submenu(menu, "Recent Colors");
@@ -305,6 +315,9 @@ pub(super) fn menu_action(tag: isize) {
             });
         }
         COLORS_WINDOW => settings_window::show_colors(mtm),
+        RULER_HORIZONTAL => crate::rulers::new_ruler(false, mtm),
+        RULER_VERTICAL => crate::rulers::new_ruler(true, mtm),
+        RULERS_CLOSE => crate::rulers::close_all(),
         // Let the menu close before the screen is captured.
         MEASURE => {
             APP.with(|a| {

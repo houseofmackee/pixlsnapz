@@ -13,6 +13,7 @@ compile_error!("PixlSnapz only builds for macOS");
 pub mod i18n;
 
 pub mod color;
+pub mod elements;
 pub mod geometry;
 pub mod integrations;
 pub mod items;
@@ -26,5 +27,6 @@ pub mod capture;
 mod hotkeys;
 mod login_item;
 pub mod overlay;
+pub mod rulers;
 pub mod settings_window;
 mod updates;

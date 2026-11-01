@@ -11,6 +11,8 @@ pub enum UrlCommand {
     PickColor,
     /// Open the Colors window.
     Colors,
+    /// Open a floating ruler, `?direction=vertical` for a vertical one.
+    Ruler { vertical: bool },
 }
 
 /// The command in a `pixlsnapz://` URL, or `None` for anything else.
@@ -28,6 +30,9 @@ pub fn parse_url(url: &str) -> Option<UrlCommand> {
         "settings" => Some(UrlCommand::Settings { tab: param("tab") }),
         "pick-color" => Some(UrlCommand::PickColor),
         "colors" => Some(UrlCommand::Colors),
+        "ruler" => {
+            Some(UrlCommand::Ruler { vertical: param("direction").is_some_and(|d| d.eq_ignore_ascii_case("vertical")) })
+        }
         _ => None,
     }
 }
@@ -102,6 +107,8 @@ mod tests {
         assert_eq!(parse_url("pixlsnapz://settings?tab="), Some(UrlCommand::Settings { tab: None }));
         assert_eq!(parse_url("pixlsnapz://pick-color"), Some(UrlCommand::PickColor));
         assert_eq!(parse_url("pixlsnapz:colors/"), Some(UrlCommand::Colors));
+        assert_eq!(parse_url("pixlsnapz://ruler"), Some(UrlCommand::Ruler { vertical: false }));
+        assert_eq!(parse_url("pixlsnapz://ruler?direction=Vertical"), Some(UrlCommand::Ruler { vertical: true }));
         assert_eq!(parse_url("pixlsnapz://launch-rockets"), None);
         assert_eq!(parse_url("https://example.com"), None);
         assert_eq!(

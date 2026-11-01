@@ -27,7 +27,7 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Spacing**: hold ⌥ over a kept box to see its distance to the nearest box, guide, or screen edge on every side
 - **Edit what you kept**: hover a kept box, line, circle, guide, or point to see its handles; drag a handle to resize, or the outline or line to move it. ⌫ removes the item under the pointer
 - **Smart guides**: while you draw or edit a box, dashed lines show where its edges or center line up with another kept box, and an "=" marks boxes of the same width or height; matching gaps in the ⌥ spacing view get an "=" too
-- **Window snapping**: hold ⌃ over a window to see its frame and size, and ⌃-click to keep it as a box
+- **Window and element snapping**: hold ⌃ over a window to see its frame and size, and ⌃-click to keep it as a box. Turn on Snap to Buttons and Fields in Settings (it asks for Accessibility permission) and ⌃ picks out the button, field, or image under the pointer instead
 - **Measurement sets**: ⇧S saves what is on screen (boxes, lines, guides, and points) under a name, ⇧R cycles through the saved sets, and Measurement Sets in the menu starts measuring with one or deletes it; handy for checking the same layout again after a change
 - **Links**: `pixlsnapz://measure` starts measuring, `pixlsnapz://measure?set=Header` with a saved set, and `pixlsnapz://settings?tab=grid` opens a Settings tab, for Shortcuts, launchers, and scripts
 - **Guides**: press V or H for a vertical or horizontal guide at the pointer; guides snap to nearby edges, show the distances between each other and to the screen edges, and move with the arrow keys
@@ -47,6 +47,9 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Copy sizes as code**: T switches what ⌘C copies: `120 × 48`, CSS (`width: 120px; height: 48px;`), Tailwind (`w-[120px] h-[48px]`), SwiftUI (`.frame(width: 120, height: 48)`), or `CGSize(width: 120, height: 48)`
 - **Design overlay**: lay a design image (such as a mockup exported at @2x) over the real app at 25% to 100% opacity, or as a difference that turns everything matching black; one image pixel is one screen pixel
 - **Freeze screen**: measure a still copy of the screen, so menus and animations stay put
+- **Live mode**: ⇧F finds edges in the screen as it changes (animations, video, scrolling) instead of the snapshot taken when measuring started
+- **Floating rulers**: Rulers in the menu opens horizontal or vertical rulers with tick marks in the chosen units that stay on screen while you work; drag one to move it, drag its far end to change its length, and right-click it to rotate it, change units, or close it. A red line follows the pointer with its position
+- **Shortcuts actions**: Measure (optionally with a saved set), Pick Color, New Ruler, and Show Colors in the Shortcuts app, for automations and keyboard launchers
 - **Contrast checker**: press K on one color and K again on another to copy the WCAG contrast ratio and grade, such as `4.54:1  AA`; a live readout with both swatches follows the pointer in between
 - **Units**: points, pixels, millimeters, or inches (real sizes from what each display reports, or a PPI you set), optional unit labels, and the aspect ratio of areas (`16:9`)
 - **Design zoom**: measure a design shown at 200% (or 25% to 400%) in its own units; D and ⇧D change it while measuring
@@ -131,6 +134,7 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | - and + | Loupe zoom out and in |
 | ⇧Z | Loupe color vision: normal, protanopia, deuteranopia, tritanopia, achromatopsia |
 | F | Freeze screen on or off |
+| ⇧F | Live mode on or off: edges follow the screen as it changes |
 | U | Points, pixels, millimeters, inches |
 | A | Aspect ratio on or off |
 | K | Contrast: pick the first color, then compare and copy |
@@ -157,6 +161,7 @@ From a script or a launcher such as Raycast or Alfred, `PixlSnapz.app/Contents/M
 | `pixlsnapz://settings?tab=grid` | Open Settings at a tab: general, measuring, colors, grid, or screenshots |
 | `pixlsnapz://pick-color` | Pick a color with the loupe |
 | `pixlsnapz://colors` | Open the Colors window |
+| `pixlsnapz://ruler?direction=vertical` | Open a floating ruler (horizontal without `direction`) |
 
 Measurements kept on screen with B stay until you measure again (they come back for editing) or choose Clear Kept Measurements in the menu bar icon's menu.
 
@@ -199,13 +204,14 @@ overlay_x = 0.0              # the image's top-left corner, in screen pixels
 overlay_y = 0.0
 color_shortcut = "shift+cmd+2"  # picks a color; "" for none
 hold_keys = "off"            # or "control_option", "option_command", "control_command"
+element_snapping = false     # ⌃ also snaps to buttons and fields (needs Accessibility permission)
 ```
 
 The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R, recent colors in `colors.toml`, saved measurement sets in `sets.toml`, and palettes in `palettes.toml`.
 
 ## Build and run
 
-Requires an Apple silicon Mac with macOS 14 or later and a Rust toolchain.
+Requires an Apple silicon Mac with macOS 14 or later, a Rust toolchain, and Xcode: `build.rs` compiles the Shortcuts actions (`macos/intents/Intents.swift`) with the Swift compiler and generates their metadata with Xcode's App Intents tool. Set `PIXLSNAPZ_NO_INTENTS=1` to build without them. Shortcuts only talks to a copy signed with a team ID (such as a Developer ID), not an ad-hoc signed one.
 
 ```sh
 cargo run --release            # run from the terminal (Screen Recording then applies to your terminal)

@@ -393,7 +393,7 @@ pub(super) const HINTS: [&str; 4] = [
         "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  \
      Scroll or [ ]: tolerance  ·  N smooth edges"
     ),
-    n!("U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  \
+    n!("U units  ·  O grid  ·  F freeze  ·  ⇧F live  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  \
      I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast"),
     n!("⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  \
      ⇧S ⇧R sets  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done"),
@@ -648,7 +648,7 @@ pub(super) fn draw(index: usize) {
                     draw_alignment(o, x, y, rgb);
                 }
                 // ⌃ over a window: its frame, ready to keep with a click.
-                let window = s.window_at(index, p).filter(|_| s.control && !s.picking);
+                let window = s.control_frame.filter(|_| s.control && !s.picking && index == s.active);
                 if s.picking {
                     // Picking a color: just the loupe.
                 } else if let Some(r) = window {

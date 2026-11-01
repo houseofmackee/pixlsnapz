@@ -8,6 +8,7 @@
 mod actions;
 mod draw;
 mod keys;
+mod live;
 mod loupe;
 mod session;
 mod view;

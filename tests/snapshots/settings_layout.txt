@@ -28,6 +28,7 @@ Measuring | label | Measure: |
 Measuring | popup | Both directions | Measure
 Measuring | button | Show the aspect ratio of areas | Show the aspect ratio of areas
 Measuring | button | Freeze the screen while measuring | Freeze the screen while measuring
+Measuring | button | Snap to buttons and fields (⌃) | Snap to buttons and fields (⌃)
 Colors & Loupe | label | Guide color: |
 Colors & Loupe | popup | Pink | Guide color
 Colors & Loupe | label | Copy colors as: |

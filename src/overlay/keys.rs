@@ -284,6 +284,7 @@ pub(super) fn key_down(event: &NSEvent) {
         }),
         (false, "s") => toggle_setting(n!("Snap areas to content"), |st| &mut st.snap_areas),
         (false, "z") => toggle_setting(n!("Loupe"), |st| &mut st.loupe),
+        (false, "f") if shift => super::live::toggle_live(),
         (false, "f") => toggle_setting(n!("Freeze screen"), |st| &mut st.freeze),
         (false, "a") => toggle_setting(n!("Aspect ratio"), |st| &mut st.show_aspect_ratio),
         (false, "/") | (false, "?") => update(|s| {

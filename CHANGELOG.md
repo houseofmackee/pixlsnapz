@@ -38,6 +38,13 @@ the GitHub release shows.
   between the last two clicked, palettes, and export as CSS, JSON, or ASE.
 - Hold to measure: hold a chosen pair of modifier keys to see distances,
   and let go to stop (off by default; in Settings).
+- Element snapping: with Snap to Buttons and Fields on (Accessibility
+  permission), ⌃ highlights and keeps the button, field, or image under
+  the pointer, not just the window.
+- Live mode (⇧F): edges follow the screen as it changes.
+- Floating rulers in px, pt, mm, or in that stay on screen, with a marker
+  that follows the pointer (Rulers in the menu, or `pixlsnapz://ruler`).
+- Shortcuts actions: Measure, Pick Color, New Ruler, and Show Colors.
 
 ### Changed
 
