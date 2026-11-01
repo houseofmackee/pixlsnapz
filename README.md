@@ -6,6 +6,19 @@ Everything happens on your Mac: no accounts and no telemetry. The only network a
 
 Apple silicon, macOS 14 Sonoma or later.
 
+![Distances from the pointer to the nearest edges of a card's cover](docs/screenshots/distances.png)
+
+<p align="center">
+  <img src="docs/screenshots/areas.png" alt="Areas snapped to a button and to a team member, with two guides" width="49%">
+  <img src="docs/screenshots/tools.png" alt="A line with its angle, a circle with its radius and diameter, and the loupe" width="49%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" alt="The Settings window, Measuring tab" width="50%">
+</p>
+
+<sub>Screenshots use a made-up demo window; `scripts/readme_screenshots.sh` regenerates them.</sub>
+
 ## Features
 
 - **Distances**: lines run from the pointer to the nearest edge left, right, up, and down, with the size as `W × H`; the pointer itself is hidden while measuring, so nothing covers the spot the lines cross
@@ -36,7 +49,15 @@ Apple silicon, macOS 14 Sonoma or later.
 
 ## Install
 
-Download `PixlSnapz-<version>-arm64.dmg` from the [releases page](https://github.com/houseofmackee/pixlsnapz/releases/latest), open it, and drag PixlSnapz into Applications. Check it against `SHA256SUMS.txt` from the same release if you like (`shasum -a 256 -c --ignore-missing SHA256SUMS.txt`).
+With [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask houseofmackee/tap/pixlsnapz
+```
+
+This also links the `pixlsnapz` command line tool. PixlSnapz updates itself, so `brew upgrade` leaves it alone (`brew upgrade --cask --greedy pixlsnapz` updates it through Homebrew instead), and `brew uninstall --zap --cask pixlsnapz` also removes its settings.
+
+Or download `PixlSnapz-<version>-arm64.dmg` from the [releases page](https://github.com/houseofmackee/pixlsnapz/releases/latest), open it, and drag PixlSnapz into Applications. Check it against `SHA256SUMS.txt` from the same release if you like (`shasum -a 256 -c --ignore-missing SHA256SUMS.txt`).
 
 PixlSnapz lives in the menu bar. The first time you measure, macOS asks to allow **Screen Recording**: PixlSnapz looks at the pixels on screen to find edges. Turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen PixlSnapz. Nothing is saved or sent anywhere, except screenshots you save yourself.
 
@@ -142,13 +163,14 @@ scripts/make_icon.sh           # rebuild macos/AppIcon.icns after editing macos/
 open dist/PixlSnapz.app
 ```
 
-Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings folder, and `PIXLSNAPZ_LOG=pixlsnapz=debug` enables verbose logging.
+Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings folder, `PIXLSNAPZ_LOG=pixlsnapz=debug` enables verbose logging, and `PIXLSNAPZ_SHOW_SETTINGS=<tab>` (such as `measuring`) opens Settings at that tab on launch.
 
 ## Development
 
 ```sh
 cargo test                     # edge detection, snapping, edge jumps, lines, units, grids, colors, contrast, saved sessions, settings, and shortcuts
 cargo clippy --all-targets
+scripts/readme_screenshots.sh  # regenerate docs/screenshots from a demo window (needs cliclick and Accessibility for the terminal)
 ```
 
 The edge detection (`src/measure.rs`) works on a plain RGBA buffer and has no AppKit dependency, so it is fully unit tested. The rest is AppKit through `objc2`: `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit, `src/overlay/` shows one transparent, non-activating panel per display: `view.rs` (window, view, and mouse input), `session.rs` (session state and logic), `keys.rs` (keyboard commands), `actions.rs` (copying and screenshots), and `draw.rs` (drawing), `src/settings_window.rs` is the Settings window, and `src/app.rs` owns the menu bar item and the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission).

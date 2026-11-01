@@ -26,6 +26,7 @@ const HEIGHT: f64 = 380.0;
 const LABEL_WIDTH: f64 = 190.0;
 const ROW: f64 = 30.0;
 const KEY_ESCAPE: u16 = 53;
+const TAB_TITLES: [&str; 5] = ["General", "Measuring", "Colors & Loupe", "Grid", "Screenshots"];
 const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
 
 define_class!(
@@ -104,6 +105,7 @@ struct Controls {
 
 struct SettingsWindow {
     window: Retained<NSWindow>,
+    tabs: Retained<NSTabView>,
     _target: Retained<Target>,
     c: Controls,
 }
@@ -300,7 +302,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     c.folder.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingMiddle);
     c.disabled_apps.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingTail);
 
-    let mut l = page("General");
+    let mut l = page(TAB_TITLES[0]);
     l.row("Measure shortcut:", &c.shortcut, 220.0);
     l.plain(&c.login, 280.0);
     l.plain(&c.hints, 280.0);
@@ -316,7 +318,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     open.setFrame(rect(content.width - 190.0, 14.0, 170.0, 30.0));
     l.view.addSubview(&open);
 
-    let mut l = page("Measuring");
+    let mut l = page(TAB_TITLES[1]);
     l.row("Units:", &c.units, 160.0);
     l.plain(&c.show_units, 280.0);
     l.row("Design zoom:", &c.design_zoom, 160.0);
@@ -330,21 +332,21 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     l.plain(&c.aspect, 280.0);
     l.plain(&c.freeze, 280.0);
 
-    let mut l = page("Colors & Loupe");
+    let mut l = page(TAB_TITLES[2]);
     l.row("Guide color:", &c.color, 160.0);
     l.row("Copy colors as:", &c.color_format, 160.0);
     l.plain(&c.loupe, 280.0);
     l.row("Loupe zoom:", &c.loupe_zoom, 100.0);
     l.row("Loupe vision:", &c.vision, 230.0);
 
-    let mut l = page("Grid");
+    let mut l = page(TAB_TITLES[3]);
     l.row("Grid (O while measuring):", &c.grid, 160.0);
     l.row("Square size (pt):", &c.grid_size, 80.0);
     l.row("Columns:", &c.grid_columns, 80.0);
     l.row("Gutter (pt):", &c.grid_gutter, 80.0);
     l.row("Margin (pt):", &c.grid_margin, 80.0);
 
-    let mut l = page("Screenshots");
+    let mut l = page(TAB_TITLES[4]);
     l.row("Save to:", &c.folder, 200.0);
     let choose = button("Choose…", sel!(chooseFolder:), t, mtm);
     choose.setFrame(rect(LABEL_WIDTH + 240.0, l.top, 100.0, 30.0));
@@ -355,7 +357,20 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     root.addSubview(&tabs);
     window.setContentView(Some(&root));
     window.center();
-    SettingsWindow { window, _target: target, c }
+    SettingsWindow { window, tabs, _target: target, c }
+}
+
+/// Shows the tab whose title starts with `name` (ignoring case).
+pub fn select_tab(name: &str) {
+    let name = name.to_lowercase();
+    WINDOW.with(|w| {
+        let w = w.borrow();
+        let Some(w) = w.as_ref() else { return };
+        let index = TAB_TITLES.iter().position(|t| t.to_lowercase().starts_with(&name));
+        if let Some(i) = index {
+            w.tabs.selectTabViewItemAtIndex(i as isize);
+        }
+    });
 }
 
 /// Shows the current settings in the window (if it is open).

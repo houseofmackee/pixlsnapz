@@ -274,6 +274,7 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
 /// Ends the session.
 pub fn end() {
     let Some(session) = SESSION.with(|s| s.borrow_mut().take()) else { return };
+    tracing::debug!("measuring ended");
     if !session.items.is_empty()
         && let Err(e) = session.saved().save_to(&SavedSession::path())
     {

@@ -209,6 +209,11 @@ pub fn run() -> anyhow::Result<()> {
     });
     register_hotkey();
     crate::updates::start(mtm);
+    // For screenshots and tests: open Settings at a tab right away.
+    if let Ok(tab) = std::env::var("PIXLSNAPZ_SHOW_SETTINGS") {
+        settings_window::show(mtm);
+        settings_window::select_tab(&tab);
+    }
     if first_launch {
         welcome();
     }

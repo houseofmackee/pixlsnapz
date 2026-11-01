@@ -7,6 +7,13 @@ the GitHub release shows.
 
 ## [Unreleased]
 
+### Added
+
+- Homebrew: `brew install --cask houseofmackee/tap/pixlsnapz`, kept up to
+  date by each release.
+- `PIXLSNAPZ_SHOW_SETTINGS=<tab>` opens Settings at a tab on launch (for
+  screenshots and tests).
+
 ## [0.1.1] - 2026-11-01
 
 ### Added
