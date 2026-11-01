@@ -34,7 +34,8 @@ Work through this for every release, on an Apple silicon Mac.
 - [ ] Freeze, loupe, units, aspect ratio, tolerance, restore, and clear work, and the toggles persist.
 - [ ] Works over a full-screen app, in another Space, and with two displays; Esc, right click, and ⌘Tab end measuring.
 - [ ] ⌃ highlights a window (and, with Snap to Buttons and Fields and Accessibility allowed, a button); ⇧S and ⇧R save and load a set; ⇧F follows a scrolling page.
-- [ ] ⇧⌘2 picks a color; the Colors window copies, compares, saves a palette, and exports; rulers move, resize, and rotate.
+- [ ] ⇧⌘2 picks a color; the Colors window copies, compares, saves, edits (right-click a color), renames, and exports palettes; rulers move, resize, rotate, take the arrow keys, and come back after a restart.
+- [ ] ⇧S takes a typed or pasted set name.
 - [ ] Hold to measure starts and stops with the chosen keys, and the Shortcuts actions (Measure, Pick Color, New Ruler, Show Colors) run from the Shortcuts app.
 
 ## 4. Languages and accessibility
