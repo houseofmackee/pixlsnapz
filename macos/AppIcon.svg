@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF8A4C"/>
+      <stop offset="1" stop-color="#FF2D78"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- macOS icon grid: 824 x 824 rounded square centered in 1024. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#shine)"/>
+  <!-- The measured object. -->
+  <rect x="330" y="330" width="364" height="364" rx="36" fill="#FFFFFF" fill-opacity="0.22" stroke="#FFFFFF" stroke-width="16"/>
+  <!-- Dimension line across the top, with end ticks. -->
+  <g stroke="#FFFFFF" stroke-width="18" stroke-linecap="round">
+    <line x1="330" y1="250" x2="694" y2="250"/>
+    <line x1="330" y1="220" x2="330" y2="280"/>
+    <line x1="694" y1="220" x2="694" y2="280"/>
+    <line x1="774" y1="330" x2="774" y2="694"/>
+    <line x1="744" y1="330" x2="804" y2="330"/>
+    <line x1="744" y1="694" x2="804" y2="694"/>
+  </g>
+  <!-- Crosshair in the middle. -->
+  <g stroke="#FFFFFF" stroke-width="14" stroke-linecap="round">
+    <line x1="512" y1="440" x2="512" y2="584"/>
+    <line x1="440" y1="512" x2="584" y2="512"/>
+  </g>
+  <circle cx="512" cy="512" r="14" fill="#FFFFFF"/>
+</svg>
