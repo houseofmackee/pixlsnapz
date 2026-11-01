@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use block2::RcBlock;
 use objc2::rc::Retained;
-use objc2::runtime::AnyObject;
+use objc2::runtime::{AnyObject, Bool};
 use objc2::{AllocAnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
     NSApplication, NSBackingStoreType, NSBezierPath, NSBitmapImageFileType, NSBitmapImageRep, NSColor,
@@ -101,6 +101,20 @@ define_class!(
             draw(self.index());
         }
 
+        // The pointer stays hidden while measuring, like PixelSnap: the
+        // lines cross exactly where it is. `NSCursor::hide` alone only works
+        // while the app is active, and the overlay is a non-activating
+        // panel, so the view also shows an invisible cursor.
+        #[unsafe(method(resetCursorRects))]
+        fn reset_cursor_rects(&self) {
+            self.addCursorRect_cursor(self.bounds(), &blank_cursor());
+        }
+
+        #[unsafe(method(cursorUpdate:))]
+        fn cursor_update(&self, _event: &NSEvent) {
+            blank_cursor().set();
+        }
+
         #[unsafe(method(mouseEntered:))]
         fn mouse_entered(&self, event: &NSEvent) {
             if let Some(window) = self.window() {
@@ -175,6 +189,7 @@ impl OverlayView {
         let view: Retained<OverlayView> = unsafe { msg_send![super(this), initWithFrame: frame] };
         let options = NSTrackingAreaOptions::MouseMoved
             | NSTrackingAreaOptions::MouseEnteredAndExited
+            | NSTrackingAreaOptions::CursorUpdate
             | NSTrackingAreaOptions::ActiveAlways
             | NSTrackingAreaOptions::InVisibleRect;
         // SAFETY: the view owns the tracking area and outlives it.
@@ -200,6 +215,7 @@ impl OverlayView {
     }
 
     fn moved(&self, event: &NSEvent) {
+        blank_cursor().set();
         let p = self.location(event);
         let index = self.index();
         let shift = event.modifierFlags().contains(NSEventModifierFlags::Shift);
@@ -211,6 +227,7 @@ impl OverlayView {
     }
 
     fn drag_started(&self, event: &NSEvent) {
+        blank_cursor().set();
         let p = self.location(event);
         let index = self.index();
         update(|s| {
@@ -221,6 +238,7 @@ impl OverlayView {
     }
 
     fn dragged(&self, event: &NSEvent) {
+        blank_cursor().set();
         let p = self.location(event);
         let shift = event.modifierFlags().contains(NSEventModifierFlags::Shift);
         update(|s| {
@@ -618,6 +636,7 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
             window.orderFrontRegardless();
         }
     }
+    blank_cursor().set();
     NSCursor::hide();
     tracing::debug!(
         "overlay ready in {:?}; key: {}, app active: {}",
@@ -638,7 +657,24 @@ pub fn end() {
         o.window.orderOut(None);
     }
     NSCursor::unhide();
+    NSCursor::arrowCursor().set();
     drop(session);
+}
+
+/// A fully transparent cursor, made once.
+fn blank_cursor() -> Retained<NSCursor> {
+    thread_local! {
+        static BLANK: std::cell::OnceCell<Retained<NSCursor>> = const { std::cell::OnceCell::new() };
+    }
+    BLANK.with(|b| {
+        b.get_or_init(|| {
+            // An image that draws nothing.
+            let draw = RcBlock::new(|_rect: NSRect| Bool::YES);
+            let image = NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(16.0, 16.0), false, &draw);
+            NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, NSPoint::new(8.0, 8.0))
+        })
+        .clone()
+    })
 }
 
 fn contains(r: NSRect, p: NSPoint) -> bool {

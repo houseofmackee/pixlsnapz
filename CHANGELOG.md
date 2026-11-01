@@ -14,6 +14,7 @@ content, kept measurements, guides with distances, a crosshair for
 alignment, a loupe with color picking, area screenshots, freeze screen,
 points or pixels, aspect ratios, adjustable edge tolerance, restoring the
 previous session, multiple displays, and a customizable global shortcut.
+The pointer is hidden while measuring.
 
 [Unreleased]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/houseofmackee/pixlsnapz/releases/tag/v0.1.0
