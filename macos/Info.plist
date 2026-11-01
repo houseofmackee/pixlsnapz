@@ -17,6 +17,17 @@
 	<string>PixlSnapz</string>
 	<key>CFBundleIdentifier</key>
 	<string>io.github.houseofmackee.pixlsnapz</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.github.houseofmackee.pixlsnapz</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pixlsnapz</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>

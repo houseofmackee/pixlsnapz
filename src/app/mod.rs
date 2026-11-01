@@ -11,7 +11,10 @@ use objc2_app_kit::{
     NSMenuDelegate, NSMenuItem, NSRunningApplication, NSStatusBar, NSStatusItem, NSVariableStatusItemLength,
     NSWorkspace, NSWorkspaceApplicationKey, NSWorkspaceDidActivateApplicationNotification,
 };
-use objc2_foundation::{NSDistributedNotificationCenter, NSNotification, NSObject, NSObjectProtocol, NSString, NSURL};
+use objc2_foundation::{
+    NSAppleEventDescriptor, NSAppleEventManager, NSDistributedNotificationCenter, NSNotification, NSObject,
+    NSObjectProtocol, NSString, NSURL,
+};
 
 use crate::hotkeys::{HotkeyAction, Hotkeys};
 use crate::overlay::{self, StartError};
@@ -26,6 +29,10 @@ use menu::*;
 pub const MEASURE_NOTIFICATION: &str = "io.github.houseofmackee.pixlsnapz.measure";
 /// Posted by `pixlsnapz settings` to show the Settings window.
 pub const SETTINGS_NOTIFICATION: &str = "io.github.houseofmackee.pixlsnapz.settings";
+/// `'GURL'`: the Apple event class and id for opening a URL.
+const GET_URL: u32 = u32::from_be_bytes(*b"GURL");
+/// `'----'`: the direct object of an Apple event.
+const KEY_DIRECT_OBJECT: u32 = u32::from_be_bytes(*b"----");
 const SCREEN_RECORDING_SETTINGS: &str = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
 
 define_class!(
@@ -71,9 +78,25 @@ define_class!(
             settings_window::show(mtm());
         }
 
+        /// A `pixlsnapz://` link was opened.
+        #[unsafe(method(handleURL:withReplyEvent:))]
+        fn handle_url(&self, event: &NSAppleEventDescriptor, _reply: &NSAppleEventDescriptor) {
+            // SAFETY: `paramDescriptorForKeyword:` takes an `AEKeyword` (u32)
+            // and returns a descriptor or nil.
+            let param: Option<Retained<NSAppleEventDescriptor>> =
+                unsafe { msg_send![event, paramDescriptorForKeyword: KEY_DIRECT_OBJECT] };
+            let url = param.and_then(|d| d.stringValue());
+            if let Some(url) = url {
+                open_pixlsnapz_url(&url.to_string());
+            }
+        }
+
         #[unsafe(method(remoteMeasure:))]
         fn remote_measure(&self, _notification: &NSNotification) {
-            if !overlay::is_measuring() {
+            // From the Measurement Sets menu: start with that set.
+            if let Some(set) = PENDING_SET.with(|p| p.borrow_mut().take()) {
+                report_start(overlay::measure_with_set(&set, mtm()));
+            } else if !overlay::is_measuring() {
                 measure();
             }
         }
@@ -111,6 +134,8 @@ fn front_app_of(app: &NSRunningApplication) -> Option<(String, String)> {
 
 thread_local! {
     static APP: RefCell<Option<App>> = const { RefCell::new(None) };
+    /// A set chosen in the menu, loaded once the menu has closed.
+    static PENDING_SET: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 fn mtm() -> MainThreadMarker {
@@ -161,6 +186,19 @@ pub fn run() -> anyhow::Result<()> {
             Some(&NSString::from_str(SETTINGS_NOTIFICATION)),
             None,
         );
+    }
+
+    // SAFETY: the target lives for the whole process; the selector matches
+    // its method.
+    unsafe {
+        let manager = NSAppleEventManager::sharedAppleEventManager();
+        let _: () = msg_send![
+            &manager,
+            setEventHandler: &*target,
+            andSelector: sel!(handleURL:withReplyEvent:),
+            forEventClass: GET_URL,
+            andEventID: GET_URL
+        ];
     }
 
     let first_launch = !Settings::path().exists();
@@ -302,7 +340,34 @@ pub fn on_hotkey(action: HotkeyAction) {
 }
 
 pub fn measure() {
-    match overlay::toggle(mtm()) {
+    report_start(overlay::toggle(mtm()));
+}
+
+/// Runs a `pixlsnapz://measure?set=…` or `pixlsnapz://settings?tab=…` link.
+fn open_pixlsnapz_url(url: &str) {
+    use crate::integrations::{UrlCommand, parse_url};
+    tracing::info!("opening {url}");
+    match parse_url(url) {
+        Some(UrlCommand::Measure { set: Some(set) }) => report_start(overlay::measure_with_set(&set, mtm())),
+        Some(UrlCommand::Measure { set: None }) => {
+            if !overlay::is_measuring() {
+                measure();
+            }
+        }
+        Some(UrlCommand::Settings { tab }) => {
+            overlay::end_measuring();
+            settings_window::show(mtm());
+            if let Some(tab) = tab {
+                settings_window::select_tab(&tab);
+            }
+        }
+        None => tracing::warn!("unknown link {url}"),
+    }
+}
+
+/// Explains why measuring could not start, if it could not.
+fn report_start(result: Result<(), StartError>) {
+    match result {
         Ok(()) => {}
         Err(StartError::NoPermission) => permission_alert(),
         Err(StartError::Capture(e)) => {

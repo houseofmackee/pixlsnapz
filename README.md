@@ -26,6 +26,10 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Keep measurements**: click to keep a distance on screen, and drag as many areas as you like. New distances stop at kept areas and guides, so you can read the gap between two objects
 - **Spacing**: hold ⌥ over a kept box to see its distance to the nearest box, guide, or screen edge on every side
 - **Edit what you kept**: hover a kept box, line, circle, guide, or point to see its handles; drag a handle to resize, or the outline or line to move it. ⌫ removes the item under the pointer
+- **Smart guides**: while you draw or edit a box, dashed lines show where its edges or center line up with another kept box, and an "=" marks boxes of the same width or height; matching gaps in the ⌥ spacing view get an "=" too
+- **Window snapping**: hold ⌃ over a window to see its frame and size, and ⌃-click to keep it as a box
+- **Measurement sets**: ⇧S saves what is on screen (boxes, lines, guides, and points) under a name, ⇧R cycles through the saved sets, and Measurement Sets in the menu starts measuring with one or deletes it; handy for checking the same layout again after a change
+- **Links**: `pixlsnapz://measure` starts measuring, `pixlsnapz://measure?set=Header` with a saved set, and `pixlsnapz://settings?tab=grid` opens a Settings tab, for Shortcuts, launchers, and scripts
 - **Guides**: press V or H for a vertical or horizontal guide at the pointer; guides snap to nearby edges, show the distances between each other and to the screen edges, and move with the arrow keys
 - **Line ruler**: ⌥-drag (or press L for the line tool) to measure the length and angle of any line, with a protractor arc; hold ⇧ to snap to 45°
 - **Circle tool**: press E and drag from the center to measure radius and diameter
@@ -104,6 +108,9 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | T | Size format for ⌘C: plain, CSS, Tailwind, SwiftUI, CGSize |
 | ⌥ (hold) over a kept box | Its spacing to the nearest box, guide, or screen edge on every side |
 | Drag a handle | Resize a kept box, line, or circle; drag its outline (or a guide) to move it |
+| ⌃ (hold) over a window | The window's frame and size; ⌃-click keeps it as a box |
+| ⇧S | Save what is on screen as a named set (type the name, Return saves) |
+| ⇧R | Load the next saved set |
 | Return | Copy the last size and finish |
 | P | Copy the color under the pointer |
 | ⌥P | Copy the average color of the last area |
@@ -136,7 +143,14 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | ? | Show or hide the shortcut hints |
 | Esc, right click | Finish |
 
-From a script or a launcher such as Raycast or Alfred, `PixlSnapz.app/Contents/MacOS/pixlsnapz measure` starts measuring in the running app, and `pixlsnapz settings` opens Settings.
+From a script or a launcher such as Raycast or Alfred, `PixlSnapz.app/Contents/MacOS/pixlsnapz measure` starts measuring in the running app, and `pixlsnapz settings` opens Settings. Links work too, from anywhere that opens URLs:
+
+| Link | Action |
+| --- | --- |
+| `pixlsnapz://measure` | Start measuring |
+| `pixlsnapz://measure?set=Header` | Start measuring with the saved set Header (names ignore case) |
+| `pixlsnapz://settings` | Open Settings |
+| `pixlsnapz://settings?tab=grid` | Open Settings at a tab: general, measuring, colors, grid, or screenshots |
 
 Measurements kept on screen with B stay until you measure again (they come back for editing) or choose Clear Kept Measurements in the menu bar icon's menu.
 

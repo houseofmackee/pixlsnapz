@@ -358,12 +358,14 @@ pub(super) fn draw_alignment(o: &Overlay, x: usize, y: usize, rgb: [f64; 3]) {
 pub(super) const HINTS: [&str; 4] = [
     n!("Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  \
      Click: keep"),
-    n!("Drag a handle: edit  ·  ⌥ over a box: spacing  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  \
-     Scroll or [ ]: tolerance  ·  N smooth edges"),
+    n!(
+        "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  \
+     Scroll or [ ]: tolerance  ·  N smooth edges"
+    ),
     n!("U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  \
      I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast"),
     n!("⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  \
-     B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done"),
+     ⇧S ⇧R sets  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done"),
 ];
 
 /// The design image over the screen, at its opacity or as a difference.
@@ -457,7 +459,11 @@ fn draw_spacing(s: &Session, o: &Overlay, area: PxRect, sp: crate::geometry::Spa
         path.stroke();
         let mid = (a + b) / 2.0;
         let at = if horizontal { NSPoint::new(mid, across - 14.0) } else { NSPoint::new(across + 4.0, mid) };
-        let label = s.len_text(to - from, &o.measure);
+        let mut label = s.len_text(to - from, &o.measure);
+        // Gaps that match another gap get an "=", like layout tools do.
+        if gaps.iter().filter(|((f, t), ..)| t > f && t - f == to - from).count() > 1 {
+            label = format!("= {label}");
+        }
         if horizontal {
             pill_centered(&label, at, o.size, 11.0, &accent);
         } else {
@@ -465,6 +471,71 @@ fn draw_spacing(s: &Session, o: &Overlay, area: PxRect, sp: crate::geometry::Spa
             pill_centered(&label, NSPoint::new(at.x + w / 2.0, at.y), o.size, 11.0, &accent);
         }
     }
+}
+
+/// Smart guides for the box being drawn or edited: dashed lines where its
+/// edges or center line up with another kept box on this screen, and an "="
+/// inside boxes of the same width (top) or height (right).
+fn draw_matches(s: &Session, o: &Overlay, index: usize, target: PxRect, skip: Option<usize>, rgb: [f64; 3]) {
+    let others: Vec<PxRect> = s
+        .items
+        .iter()
+        .enumerate()
+        .filter(|(n, (i, _))| *i == index && Some(*n) != skip)
+        .filter_map(|(_, (_, item))| if let Item::Area(r) = item { Some(*r) } else { None })
+        .filter(|r| r.width() > 0 && r.height() > 0)
+        .collect();
+    if others.is_empty() || target.width() == 0 || target.height() == 0 {
+        return;
+    }
+    let accent = color(rgb, 1.0);
+    let path = NSBezierPath::bezierPath();
+    path.setLineWidth(lw(1.0));
+    let dash = [2.0f64, 2.0];
+    // SAFETY: `dash` holds two values.
+    unsafe { path.setLineDash_count_phase(dash.as_ptr().cast_mut().cast(), 2, 0.0) };
+    for a in crate::geometry::alignments(target, &others, 1.0) {
+        let other = others[a.other];
+        let at = a.at / o.scale;
+        if a.edge.vertical() {
+            let (y0, y1) = (target.y0.min(other.y0), target.y1.max(other.y1));
+            line(&path, (at, o.pt(y0)), (at, o.pt(y1)));
+        } else {
+            let (x0, x1) = (target.x0.min(other.x0), target.x1.max(other.x1));
+            line(&path, (o.pt(x0), at), (o.pt(x1), at));
+        }
+    }
+    accent.setStroke();
+    path.stroke();
+    let (wide, high) = crate::geometry::same_sizes(target, &others, 1);
+    let mut marks: Vec<NSPoint> = Vec::new();
+    for r in std::iter::once(target).chain(wide.iter().map(|&i| others[i])).filter(|_| !wide.is_empty()) {
+        let rect = o.rect_pt(r);
+        marks.push(NSPoint::new(rect.origin.x + rect.size.width / 2.0, rect.origin.y + 10.0));
+    }
+    for r in std::iter::once(target).chain(high.iter().map(|&i| others[i])).filter(|_| !high.is_empty()) {
+        let rect = o.rect_pt(r);
+        marks.push(NSPoint::new(rect.origin.x + rect.size.width - 14.0, rect.origin.y + rect.size.height / 2.0));
+    }
+    for at in marks {
+        pill_centered("=", at, o.size, 10.0, &accent);
+    }
+}
+
+/// ⇧S: the name being typed for a set, in the middle of the screen.
+fn draw_naming(o: &Overlay, name: &str, fresh: bool, rgb: [f64; 3]) {
+    let center = NSPoint::new(o.size.width / 2.0, o.size.height / 2.0);
+    pill_centered(
+        &t!("Save these measurements and guides as"),
+        NSPoint::new(center.x, center.y - 30.0),
+        o.size,
+        13.0,
+        &dark(),
+    );
+    // The suggestion shows selected (accent), typed text with a caret.
+    let (text, fill) = if fresh { (name.to_string(), color(rgb, 1.0)) } else { (format!("{name}|"), dark()) };
+    pill_centered(&text, center, o.size, 17.0, &fill);
+    pill_centered(&t!("Return: save  ·  Esc: cancel"), NSPoint::new(center.x, center.y + 30.0), o.size, 11.0, &dark());
 }
 
 pub(super) fn draw(index: usize) {
@@ -513,6 +584,9 @@ pub(super) fn draw(index: usize) {
                 // Editing a kept item: its handles, nothing new.
                 if let Some(target) = d.edit {
                     draw_handles(s, o, target.item, rgb);
+                    if let Some((_, Item::Area(r))) = s.items.get(target.item) {
+                        draw_matches(s, o, index, *r, Some(target.item), rgb);
+                    }
                 }
             } else if let Some(d) = s.drag {
                 let px = |v: f64| v * o.scale;
@@ -522,15 +596,23 @@ pub(super) fn draw(index: usize) {
                         let r = line_length(d.end.x - d.start.x, d.end.y - d.start.y);
                         draw_circle(s, o, (px(d.start.x), px(d.start.y), px(r)), rgb);
                     }
-                    Tool::Area => draw_area(s, o, o.rect_px(d.start, d.end), rgb),
+                    Tool::Area => {
+                        let r = o.rect_px(d.start, d.end);
+                        draw_area(s, o, r, rgb);
+                        draw_matches(s, o, index, r, None, rgb);
+                    }
                 }
             } else if let Some(p) = s.hover {
                 let (x, y) = o.px(p);
                 if s.shift {
                     draw_alignment(o, x, y, rgb);
                 }
-                // ⌥ over a kept box: its spacing to everything around it.
-                if let Some((n, area)) = s.area_under(index, x, y).filter(|_| s.option) {
+                // ⌃ over a window: its frame, ready to keep with a click.
+                let window = s.window_at(index, p).filter(|_| s.control);
+                if let Some(r) = window {
+                    draw_area(s, o, r, rgb);
+                } else if let Some((n, area)) = s.area_under(index, x, y).filter(|_| s.option) {
+                    // ⌥ over a kept box: its spacing to everything around it.
                     draw_spacing(s, o, area, s.spacing_of(index, n, area), rgb);
                 } else {
                     let c = s.cross_at(index, x, y);
@@ -559,6 +641,10 @@ pub(super) fn draw(index: usize) {
         }
 
         if index == s.active
+            && let Some((name, fresh)) = &s.naming
+        {
+            draw_naming(o, name, *fresh, rgb);
+        } else if index == s.active
             && let Some((text, at)) = &s.toast
             && at.elapsed() < TOAST_TIME
         {

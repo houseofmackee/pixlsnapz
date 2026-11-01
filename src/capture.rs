@@ -43,6 +43,73 @@ pub struct Shot {
     pub width_mm: f64,
 }
 
+/// A window's frame in global screen points, with a top-left origin (as
+/// Core Graphics measures them).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WindowFrame {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Other apps' on-screen windows, front to back: normal and floating ones
+/// (below the Dock), at least 40 points each way. Needs no permission:
+/// only frames are read, not titles or contents.
+pub fn window_frames() -> Vec<WindowFrame> {
+    use objc2_core_graphics::{
+        CGRectMakeWithDictionaryRepresentation, CGWindowLevelForKey, CGWindowLevelKey, CGWindowListCopyWindowInfo,
+        CGWindowListOption, kCGWindowAlpha, kCGWindowBounds, kCGWindowLayer, kCGWindowOwnerPID,
+    };
+    use objc2_foundation::{NSDictionary, NSNumber, NSString};
+
+    let options = CGWindowListOption::OptionOnScreenOnly | CGWindowListOption::ExcludeDesktopElements;
+    let Some(list) = CGWindowListCopyWindowInfo(options, 0) else { return Vec::new() };
+    // SAFETY: CFArray of CFDictionary is toll-free bridged to NSArray of NSDictionary.
+    let list: &NSArray<NSDictionary<NSString, objc2::runtime::AnyObject>> =
+        unsafe { &*(&*list as *const objc2_core_foundation::CFArray).cast() };
+    let dock = CGWindowLevelForKey(CGWindowLevelKey::DockWindowLevelKey) as i64;
+    let own = std::process::id() as i64;
+    // SAFETY: static constants, bridged from CFString.
+    let key = |k: &objc2_core_foundation::CFString| -> &NSString { unsafe { &*(k as *const _ as *const NSString) } };
+    let number = |d: &NSDictionary<NSString, objc2::runtime::AnyObject>, k| {
+        d.objectForKey(key(k)).and_then(|v| v.downcast::<NSNumber>().ok())
+    };
+    let mut frames = Vec::new();
+    for window in list.iter() {
+        // SAFETY: static constants.
+        let (layer, pid, alpha) = unsafe {
+            (number(&window, kCGWindowLayer), number(&window, kCGWindowOwnerPID), number(&window, kCGWindowAlpha))
+        };
+        let layer = layer.map_or(0, |n| n.integerValue() as i64);
+        if !(0..dock).contains(&layer)
+            || pid.is_some_and(|p| p.integerValue() as i64 == own)
+            || alpha.is_some_and(|a| a.doubleValue() <= 0.0)
+        {
+            continue;
+        }
+        // SAFETY: a static constant; the value is a CFDictionary.
+        let Some(bounds) = window.objectForKey(key(unsafe { kCGWindowBounds })) else { continue };
+        let mut rect = CGRect::default();
+        // SAFETY: the bounds dictionary, bridged back to CFDictionary.
+        let ok = unsafe {
+            CGRectMakeWithDictionaryRepresentation(
+                Some(&*(&*bounds as *const objc2::runtime::AnyObject).cast::<objc2_core_foundation::CFDictionary>()),
+                &mut rect,
+            )
+        };
+        if ok && rect.size.width >= 40.0 && rect.size.height >= 40.0 {
+            frames.push(WindowFrame {
+                x: rect.origin.x,
+                y: rect.origin.y,
+                width: rect.size.width,
+                height: rect.size.height,
+            });
+        }
+    }
+    frames
+}
+
 /// Whether the app may record the screen. Asks macOS for permission (and
 /// adds the app to the list in System Settings) when `prompt` is set.
 pub fn has_permission(prompt: bool) -> bool {

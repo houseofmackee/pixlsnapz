@@ -21,6 +21,48 @@ pub(super) const KEY_RIGHT: u16 = 124;
 pub(super) const KEY_DOWN: u16 = 125;
 pub(super) const KEY_UP: u16 = 126;
 
+/// A key while naming a set (⇧S): typing, Return saves, Esc cancels.
+fn name_key(event: &NSEvent, code: u16, command: bool) {
+    match code {
+        KEY_ESCAPE => update(|s| s.naming = None),
+        KEY_RETURN | KEY_ENTER => commit_set(),
+        KEY_DELETE | KEY_FORWARD_DELETE => update(|s| {
+            if let Some((name, fresh)) = s.naming.as_mut() {
+                if *fresh {
+                    name.clear();
+                } else {
+                    name.pop();
+                }
+                *fresh = false;
+            }
+        }),
+        _ if command => {}
+        _ => {
+            let typed: String = event
+                .characters()
+                .map(|c| c.to_string())
+                .unwrap_or_default()
+                .chars()
+                .filter(|c| !c.is_control())
+                .collect();
+            if typed.is_empty() {
+                return;
+            }
+            update(|s| {
+                if let Some((name, fresh)) = s.naming.as_mut() {
+                    if *fresh {
+                        name.clear();
+                    }
+                    if name.chars().count() < 60 {
+                        name.push_str(&typed);
+                    }
+                    *fresh = false;
+                }
+            });
+        }
+    }
+}
+
 pub(super) fn key_down(event: &NSEvent) {
     let code = event.keyCode();
     let flags = event.modifierFlags();
@@ -28,6 +70,11 @@ pub(super) fn key_down(event: &NSEvent) {
     let shift = flags.contains(NSEventModifierFlags::Shift);
     let option = flags.contains(NSEventModifierFlags::Option);
     let chars = event.charactersIgnoringModifiers().map(|c| c.to_string().to_lowercase()).unwrap_or_default();
+
+    if SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.naming.is_some())) {
+        name_key(event, code, command);
+        return;
+    }
 
     match code {
         KEY_ESCAPE => {
@@ -148,6 +195,8 @@ pub(super) fn key_down(event: &NSEvent) {
             s.items.clear();
             s.toast(t!("Cleared"));
         }),
+        (false, "r") if shift => update(|s| s.load_set(None)),
+        (false, "s") if shift => save_set(),
         (false, "r") => update(|s| {
             let n = s.restore();
             s.toast(if n == 0 { t!("Nothing to restore") } else { t!("Restored {n} items", n) });

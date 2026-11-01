@@ -125,6 +125,9 @@
 "Could not save the screenshot" = "No se pudo guardar la captura";
 
 /* src/overlay/actions.rs */
+"Could not save the set" = "No se pudo guardar el conjunto";
+
+/* src/overlay/actions.rs */
 "Could not take the screenshot" = "No se pudo hacer la captura";
 
 /* src/settings.rs */
@@ -132,6 +135,9 @@
 
 /* src/units.rs */
 "degrees" = "grados";
+
+/* src/app/menu.rs */
+"Delete" = "Eliminar";
 
 /* src/app/menu.rs */
 "Design Overlay" = "Superposición de diseño";
@@ -167,7 +173,7 @@
 "difference" = "diferencia";
 
 /* src/overlay/draw.rs */
-"Drag a handle: edit  ·  ⌥ over a box: spacing  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Arrastrar un tirador: editar  ·  ⌥ sobre un área: espacios  ·  V H: guías  ·  ⌥ flechas: siguiente borde  ·  X: direcciones  ·  Desplazar o [ ]: tolerancia  ·  N bordes suaves";
+"Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Arrastrar un tirador: editar  ·  ⌥ sobre un área: espacios  ·  ⌃-clic: ventana  ·  V H: guías  ·  ⌥ flechas: siguiente borde  ·  X: direcciones  ·  Desplazar o [ ]: tolerancia  ·  N bordes suaves";
 
 /* src/overlay/actions.rs */
 "Drag over an area first" = "Primero arrastra sobre un área";
@@ -286,14 +292,20 @@
 /* src/settings_window/mod.rs */
 "Measure shortcut:" = "Atajo para medir:";
 
-/* src/overlay/mod.rs */
+/* src/overlay/actions.rs, src/overlay/mod.rs */
 "Measure something first" = "Primero mide algo";
+
+/* src/app/menu.rs */
+"Measure With" = "Medir con";
 
 /* src/settings_window/mod.rs */
 "Measure:" = "Medir:";
 
 /* src/overlay/keys.rs */
 "Measure: {name}" = "Medir: {name}";
+
+/* src/app/menu.rs */
+"Measurement Sets" = "Conjuntos de medidas";
 
 /* src/overlay/keys.rs */
 "Measurements in screenshots" = "Medidas en las capturas";
@@ -318,6 +330,15 @@
 
 /* src/app/menu.rs */
 "No Colors Yet" = "Aún no hay colores";
+
+/* src/overlay/session.rs */
+"No saved set called {name}" = "No hay ningún conjunto guardado llamado {name}";
+
+/* src/overlay/session.rs */
+"No saved sets yet: ⇧S saves one" = "Aún no hay conjuntos guardados: ⇧S guarda uno";
+
+/* src/app/menu.rs */
+"No Sets Yet: ⇧S Saves One While Measuring" = "Aún no hay conjuntos: ⇧S guarda uno al medir";
 
 /* src/color.rs */
 "Normal vision" = "Visión normal";
@@ -403,8 +424,17 @@
 /* src/overlay/keys.rs */
 "Restored {n} items" = "{n} elementos restaurados";
 
+/* src/overlay/draw.rs */
+"Return: save  ·  Esc: cancel" = "Retorno: guardar  ·  Esc: cancelar";
+
+/* src/overlay/actions.rs, src/overlay/draw.rs */
+"Save these measurements and guides as" = "Guardar estas medidas y guías como";
+
 /* src/settings_window/mod.rs */
 "Save to:" = "Guardar en:";
+
+/* src/overlay/actions.rs */
+"Saved set {name}" = "Conjunto {name} guardado";
 
 /* src/overlay/actions.rs */
 "Saved to {folder}" = "Guardado en {folder}";
@@ -417,6 +447,12 @@
 
 /* src/settings_window/mod.rs */
 "Screenshots" = "Capturas";
+
+/* src/overlay/actions.rs */
+"Set" = "Conjunto";
+
+/* src/overlay/session.rs */
+"Set: {name} ({n} of {count})" = "Conjunto: {name} ({n} de {count})";
 
 /* src/app/menu.rs */
 "Settings…" = "Ajustes…";
@@ -536,4 +572,4 @@
 "{shortcut} is used by another app. Choose another one in PixlSnapz Settings (menu bar icon > Settings…); you can still start measuring from the menu bar." = "{shortcut} lo usa otra app. Elige otro en Ajustes de PixlSnapz (icono de la barra de menús > Ajustes…); aún puedes empezar a medir desde la barra de menús.";
 
 /* src/overlay/draw.rs */
-"⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copiar  ·  T formato de tamaño  ·  ⌘S ⇧⌘C captura  ·  ⌘E CleanShotZ  ·  M medidas en capturas  ·  B mantener en pantalla  ·  ⌫ quitar  ·  C borrar  ·  R restaurar  ·  ? indicaciones  ·  Esc terminar";
+"⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  ⇧S ⇧R sets  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copiar  ·  T formato de tamaño  ·  ⌘S ⇧⌘C captura  ·  ⌘E CleanShotZ  ·  M medidas en capturas  ·  ⇧S ⇧R conjuntos  ·  B mantener en pantalla  ·  ⌫ quitar  ·  C borrar  ·  R restaurar  ·  ? indicaciones  ·  Esc terminar";

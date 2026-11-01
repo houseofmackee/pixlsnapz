@@ -125,6 +125,9 @@
 "Could not save the screenshot" = "Could not save the screenshot";
 
 /* src/overlay/actions.rs */
+"Could not save the set" = "Could not save the set";
+
+/* src/overlay/actions.rs */
 "Could not take the screenshot" = "Could not take the screenshot";
 
 /* src/settings.rs */
@@ -132,6 +135,9 @@
 
 /* src/units.rs */
 "degrees" = "degrees";
+
+/* src/app/menu.rs */
+"Delete" = "Delete";
 
 /* src/app/menu.rs */
 "Design Overlay" = "Design Overlay";
@@ -167,7 +173,7 @@
 "difference" = "difference";
 
 /* src/overlay/draw.rs */
-"Drag a handle: edit  ·  ⌥ over a box: spacing  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges";
+"Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges";
 
 /* src/overlay/actions.rs */
 "Drag over an area first" = "Drag over an area first";
@@ -286,14 +292,20 @@
 /* src/settings_window/mod.rs */
 "Measure shortcut:" = "Measure shortcut:";
 
-/* src/overlay/mod.rs */
+/* src/overlay/actions.rs, src/overlay/mod.rs */
 "Measure something first" = "Measure something first";
+
+/* src/app/menu.rs */
+"Measure With" = "Measure With";
 
 /* src/settings_window/mod.rs */
 "Measure:" = "Measure:";
 
 /* src/overlay/keys.rs */
 "Measure: {name}" = "Measure: {name}";
+
+/* src/app/menu.rs */
+"Measurement Sets" = "Measurement Sets";
 
 /* src/overlay/keys.rs */
 "Measurements in screenshots" = "Measurements in screenshots";
@@ -318,6 +330,15 @@
 
 /* src/app/menu.rs */
 "No Colors Yet" = "No Colors Yet";
+
+/* src/overlay/session.rs */
+"No saved set called {name}" = "No saved set called {name}";
+
+/* src/overlay/session.rs */
+"No saved sets yet: ⇧S saves one" = "No saved sets yet: ⇧S saves one";
+
+/* src/app/menu.rs */
+"No Sets Yet: ⇧S Saves One While Measuring" = "No Sets Yet: ⇧S Saves One While Measuring";
 
 /* src/color.rs */
 "Normal vision" = "Normal vision";
@@ -403,8 +424,17 @@
 /* src/overlay/keys.rs */
 "Restored {n} items" = "Restored {n} items";
 
+/* src/overlay/draw.rs */
+"Return: save  ·  Esc: cancel" = "Return: save  ·  Esc: cancel";
+
+/* src/overlay/actions.rs, src/overlay/draw.rs */
+"Save these measurements and guides as" = "Save these measurements and guides as";
+
 /* src/settings_window/mod.rs */
 "Save to:" = "Save to:";
+
+/* src/overlay/actions.rs */
+"Saved set {name}" = "Saved set {name}";
 
 /* src/overlay/actions.rs */
 "Saved to {folder}" = "Saved to {folder}";
@@ -417,6 +447,12 @@
 
 /* src/settings_window/mod.rs */
 "Screenshots" = "Screenshots";
+
+/* src/overlay/actions.rs */
+"Set" = "Set";
+
+/* src/overlay/session.rs */
+"Set: {name} ({n} of {count})" = "Set: {name} ({n} of {count})";
 
 /* src/app/menu.rs */
 "Settings…" = "Settings…";
@@ -536,4 +572,4 @@
 "{shortcut} is used by another app. Choose another one in PixlSnapz Settings (menu bar icon > Settings…); you can still start measuring from the menu bar." = "{shortcut} is used by another app. Choose another one in PixlSnapz Settings (menu bar icon > Settings…); you can still start measuring from the menu bar.";
 
 /* src/overlay/draw.rs */
-"⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done";
+"⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  ⇧S ⇧R sets  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  ⇧S ⇧R sets  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done";

@@ -206,6 +206,7 @@ fn build_overlay(
     index: usize,
     frame: NSRect,
     safe_bottom: f64,
+    cg_origin: (f64, f64),
     shot: Shot,
     settings: &Settings,
     mtm: MainThreadMarker,
@@ -240,7 +241,18 @@ fn build_overlay(
     let scale = shot.frame.width as f64 / size.width;
     let image = NSImage::initWithCGImage_size(NSImage::alloc(), &shot.image, size);
     let measure = Scale::new(scale, shot.frame.width, shot.width_mm, settings.screen_ppi, settings.design_zoom);
-    Overlay { window, view, shot, image, scale, measure, size, safe_bottom, smoothed: std::cell::OnceCell::new() }
+    Overlay {
+        window,
+        view,
+        shot,
+        image,
+        scale,
+        measure,
+        size,
+        safe_bottom,
+        cg_origin,
+        smoothed: std::cell::OnceCell::new(),
+    }
 }
 
 /// Starts measuring on every display (or ends a running session).
@@ -260,6 +272,10 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
         || workspace.accessibilityDisplayShouldReduceTransparency();
     HIGH_CONTRAST.with(|h| h.set(contrast));
     let shots = capture::capture_all().map_err(StartError::Capture)?;
+    // Other apps' windows, for ⌃ (read before the overlay covers them).
+    let other_windows = capture::window_frames();
+    // Core Graphics measures from the top-left of the main display.
+    let main_height = NSScreen::screens(mtm).firstObject().map_or(0.0, |s| s.frame().size.height);
     let settings = Settings::load();
 
     let mut overlays = Vec::new();
@@ -275,7 +291,8 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
         let visible = screen.visibleFrame();
         // Where the Dock begins, in view points from the top.
         let safe_bottom = frame.size.height - (visible.origin.y - frame.origin.y);
-        overlays.push(build_overlay(overlays.len(), frame, safe_bottom, shot, &settings, mtm));
+        let cg_origin = (frame.origin.x, main_height - frame.origin.y - frame.size.height);
+        overlays.push(build_overlay(overlays.len(), frame, safe_bottom, cg_origin, shot, &settings, mtm));
     }
     if overlays.is_empty() {
         return Err(StartError::Capture(anyhow::anyhow!("no screen matched a captured display")));
@@ -297,6 +314,7 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
     SESSION.with(|s| {
         let items = kept.map(|k| k.place(&displays)).unwrap_or_default();
         let mut session = Session::new(overlays, settings, active, Some(hover), items);
+        session.windows = other_windows;
         if session.settings.overlay_visible {
             session.overlay_image = load_overlay_image(&session.settings.overlay_image);
         }
@@ -332,6 +350,17 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
         windows[active].0.isKeyWindow(),
         app.isActive()
     );
+    Ok(())
+}
+
+/// Starts measuring (if not already) and shows the saved set `name`
+/// instead of what was on screen. For the menu and `pixlsnapz://` URLs.
+pub fn measure_with_set(name: &str, mtm: MainThreadMarker) -> Result<(), StartError> {
+    if !is_measuring() {
+        toggle(mtm)?;
+    }
+    let name = name.to_string();
+    update(|s| s.load_set(Some(&name)));
     Ok(())
 }
 
@@ -398,7 +427,7 @@ pub fn render_for_tests(
     let shot = capture::shot_from_frame(1, frame)?;
     let size = NSSize::new(shot.frame.width as f64, shot.frame.height as f64);
     let rect = NSRect::new(NSPoint::new(0.0, 0.0), size);
-    let overlay = build_overlay(0, rect, size.height, shot, &settings, mtm);
+    let overlay = build_overlay(0, rect, size.height, (0.0, 0.0), shot, &settings, mtm);
     let view = overlay.view.clone();
     let items = items.into_iter().map(|item| (0, item)).collect();
     let mut session = Session::new(vec![overlay], settings, 0, None, items);

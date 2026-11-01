@@ -21,6 +21,15 @@ the GitHub release shows.
   the menu).
 - ⌘E opens the last area, with its measurements, in CleanShotZ to
   annotate.
+- Smart guides: while drawing or editing a box, dashed lines show where it
+  lines up with other kept boxes, and "=" marks boxes of the same width or
+  height and equal gaps in the spacing view.
+- Hold ⌃ over a window to see its frame; ⌃-click keeps it as a box.
+- Measurement sets: ⇧S saves what is on screen under a name, ⇧R cycles
+  through saved sets, and Measurement Sets in the menu starts measuring
+  with one or deletes it.
+- `pixlsnapz://` links start measuring (optionally with a saved set) or
+  open a Settings tab.
 
 ### Changed
 

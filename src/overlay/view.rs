@@ -153,9 +153,11 @@ define_class!(
             let flags = event.modifierFlags();
             let shift = flags.contains(NSEventModifierFlags::Shift);
             let option = flags.contains(NSEventModifierFlags::Option);
+            let control = flags.contains(NSEventModifierFlags::Control);
             update(|s| {
                 s.shift = shift;
                 s.option = option;
+                s.control = control;
             });
         }
     }
@@ -205,11 +207,13 @@ impl OverlayView {
         let flags = event.modifierFlags();
         let shift = flags.contains(NSEventModifierFlags::Shift);
         let option = flags.contains(NSEventModifierFlags::Option);
+        let control = flags.contains(NSEventModifierFlags::Control);
         update(|s| {
             s.active = index;
             s.hover = Some(p);
             s.shift = shift;
             s.option = option;
+            s.control = control;
         });
     }
 
@@ -221,6 +225,14 @@ impl OverlayView {
         let p = self.location(event);
         let index = self.index();
         let option = event.modifierFlags().contains(NSEventModifierFlags::Option);
+        // ⌃-click keeps the window under the pointer.
+        if event.modifierFlags().contains(NSEventModifierFlags::Control) {
+            update(|s| {
+                s.active = index;
+                s.keep_window(index, p);
+            });
+            return;
+        }
         update(|s| {
             s.active = index;
             s.hover = Some(p);

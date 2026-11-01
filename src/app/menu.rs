@@ -12,6 +12,7 @@ use objc2_app_kit::{
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
 use crate::color::{ColorFormat, ColorHistory};
+use crate::items::SavedSets;
 use crate::overlay::{self};
 use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, TOLERANCE_STEPS, Units};
 use crate::shortcut::{CMD, CONTROL, OPTION, SHIFT};
@@ -48,6 +49,10 @@ pub(super) const OVERLAY_CHOOSE: isize = 18;
 pub(super) const OVERLAY_SHOW: isize = 19;
 pub(super) const OVERLAY_REMOVE: isize = 20;
 pub(super) const SIZE_FORMAT_BASE: isize = 900;
+pub(super) const SET_BASE: isize = 1000;
+pub(super) const DELETE_SET_BASE: isize = 1100;
+/// Sets listed in the menu (each base leaves room for this many).
+const MAX_SETS: usize = 100;
 pub(super) const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
 
 pub(super) fn item(menu: &NSMenu, title: &str, tag: isize, target: &Target) -> Retained<NSMenuItem> {
@@ -135,6 +140,27 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
         }
         recent.addItem(&NSMenuItem::separatorItem(mtm));
         item(&recent, "Clear Recent Colors", CLEAR_COLORS, target);
+    }
+    let sets = SavedSets::load_from(&SavedSets::path());
+    let saved = submenu(menu, "Measurement Sets");
+    if sets.sets.is_empty() {
+        saved.addItem(&NSMenuItem::new(mtm));
+        if let Some(empty) = saved.itemAtIndex(0) {
+            empty.setTitle(&NSString::from_str(&t!("No Sets Yet: ⇧S Saves One While Measuring")));
+        }
+    } else {
+        saved.addItem(&NSMenuItem::new(mtm));
+        if let Some(header) = saved.itemAtIndex(0) {
+            header.setTitle(&NSString::from_str(&t!("Measure With")));
+        }
+        for (i, set) in sets.sets.iter().take(MAX_SETS).enumerate() {
+            item(&saved, &set.name, SET_BASE + i as isize, target);
+        }
+        saved.addItem(&NSMenuItem::separatorItem(mtm));
+        let delete = submenu(&saved, "Delete");
+        for (i, set) in sets.sets.iter().take(MAX_SETS).enumerate() {
+            item(&delete, &set.name, DELETE_SET_BASE + i as isize, target);
+        }
     }
     menu.addItem(&NSMenuItem::separatorItem(mtm));
 
@@ -237,6 +263,23 @@ pub(super) fn copy_to_clipboard(text: &str) {
 pub(super) fn menu_action(tag: isize) {
     let mtm = mtm();
     match tag {
+        t if (SET_BASE..SET_BASE + MAX_SETS as isize).contains(&t) => {
+            let sets = SavedSets::load_from(&SavedSets::path());
+            if let Some(set) = sets.sets.get((t - SET_BASE) as usize) {
+                PENDING_SET.with(|p| *p.borrow_mut() = Some(set.name.clone()));
+                menu_action(MEASURE);
+            }
+        }
+        t if (DELETE_SET_BASE..DELETE_SET_BASE + MAX_SETS as isize).contains(&t) => {
+            let path = SavedSets::path();
+            let mut sets = SavedSets::load_from(&path);
+            if let Some(name) = sets.sets.get((t - DELETE_SET_BASE) as usize).map(|s| s.name.clone()) {
+                sets.remove(&name);
+                if let Err(e) = sets.save_to(&path) {
+                    tracing::warn!("deleting set {name}: {e:#}");
+                }
+            }
+        }
         // Let the menu close before the screen is captured.
         MEASURE => {
             APP.with(|a| {

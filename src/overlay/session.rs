@@ -11,7 +11,9 @@ use objc2_app_kit::NSImage;
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSTimer};
 
 use crate::capture::Shot;
+use crate::capture::WindowFrame;
 use crate::geometry::{Spacing, distance_to_segment, move_rect, rect_handles, resize_rect, spacing};
+use crate::items::SavedSets;
 use crate::items::{Display, Item, SavedItem, SavedSession};
 use crate::measure::{
     Cross, Direction, Frame, PxRect, Scale, clip_cross, columns, format_angle, line_angle, line_length, next_edge,
@@ -87,6 +89,8 @@ pub(super) struct Overlay {
     pub(super) safe_bottom: f64,
     /// The screenshot smoothed for smooth edges (N), made when first needed.
     pub(super) smoothed: std::cell::OnceCell<Frame>,
+    /// This display's top-left corner in global Core Graphics points.
+    pub(super) cg_origin: (f64, f64),
 }
 
 impl Overlay {
@@ -153,6 +157,15 @@ pub(super) struct Session {
     pub(super) option: bool,
     /// The design overlay's image and its size in pixels.
     pub(super) overlay_image: Option<(Retained<NSImage>, f64, f64)>,
+    /// Control is held: the window under the pointer.
+    pub(super) control: bool,
+    /// Other apps' windows when measuring started, front to back.
+    pub(super) windows: Vec<WindowFrame>,
+    /// The saved set last loaded with ⇧R, to load the next one.
+    pub(super) current_set: Option<String>,
+    /// ⇧S: the name being typed for a new set, and whether the next key
+    /// replaces it (the suggestion is selected, as in a text field).
+    pub(super) naming: Option<(String, bool)>,
 }
 
 impl Session {
@@ -181,7 +194,54 @@ impl Session {
             kept: false,
             option: false,
             overlay_image: None,
+            control: false,
+            windows: Vec::new(),
+            current_set: None,
+            naming: None,
         }
+    }
+
+    /// The frontmost other window under `p` (points) on overlay `index`, as
+    /// a box in that display's pixels.
+    pub(super) fn window_at(&self, index: usize, p: NSPoint) -> Option<PxRect> {
+        let o = self.overlays.get(index)?;
+        let (gx, gy) = (p.x + o.cg_origin.0, p.y + o.cg_origin.1);
+        let w = self.windows.iter().find(|w| gx >= w.x && gx < w.x + w.width && gy >= w.y && gy < w.y + w.height)?;
+        let px = |v: f64| (v * o.scale).round().max(0.0) as usize;
+        let (x0, y0) = (w.x - o.cg_origin.0, w.y - o.cg_origin.1);
+        Some(o.shot.frame.clamp(PxRect { x0: px(x0), y0: px(y0), x1: px(x0 + w.width), y1: px(y0 + w.height) }))
+    }
+
+    /// ⌃-click: keeps the window under `p` as a box.
+    pub(super) fn keep_window(&mut self, index: usize, p: NSPoint) {
+        if let Some(r) = self.window_at(index, p).filter(|r| r.width() > 0 && r.height() > 0) {
+            self.items.push((index, Item::Area(r)));
+            if let Some(text) = self.copy_text() {
+                announce(&t!("Kept {text}", text));
+            }
+        }
+    }
+
+    /// Replaces what is on screen with the saved set `name`, or the set
+    /// after the last one loaded when `name` is `None`.
+    pub(super) fn load_set(&mut self, name: Option<&str>) {
+        let sets = SavedSets::load_from(&SavedSets::path());
+        let set = match name {
+            Some(name) => sets.get(name),
+            None => sets.next_after(self.current_set.as_deref()),
+        };
+        let Some(set) = set else {
+            self.toast(match name {
+                Some(name) => t!("No saved set called {name}", name),
+                None => t!("No saved sets yet: ⇧S saves one"),
+            });
+            return;
+        };
+        let placed = set.session().place(&self.displays());
+        let position = sets.sets.iter().position(|s| s.name == set.name).unwrap_or(0) + 1;
+        self.items = placed;
+        self.current_set = Some(set.name.clone());
+        self.toast(t!("Set: {name} ({n} of {count})", name = &set.name, n = position, count = sets.sets.len()));
     }
 
     /// The kept item under `p` (points) on overlay `index`, and the grip a

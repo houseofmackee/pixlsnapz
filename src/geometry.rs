@@ -171,9 +171,99 @@ pub fn spacing(
     Spacing { left: (left, area.x0), right: (area.x1, right), top: (top, area.y0), bottom: (area.y1, bottom) }
 }
 
+/// Which line of a box lines up with another box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Edge {
+    Left,
+    Right,
+    CenterX,
+    Top,
+    Bottom,
+    CenterY,
+}
+
+impl Edge {
+    /// Runs top to bottom (a shared x coordinate).
+    pub fn vertical(self) -> bool {
+        matches!(self, Edge::Left | Edge::Right | Edge::CenterX)
+    }
+}
+
+/// A line of `target` that lines up with `others[other]` at coordinate `at`
+/// (pixels).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Alignment {
+    pub edge: Edge,
+    pub at: f64,
+    pub other: usize,
+}
+
+/// Every line (edges and centers) of `target` within `tolerance` pixels of
+/// the same kind of line, or the opposite edge, of another box.
+pub fn alignments(target: PxRect, others: &[PxRect], tolerance: f64) -> Vec<Alignment> {
+    let xs = |r: &PxRect| {
+        [(Edge::Left, r.x0 as f64), (Edge::Right, r.x1 as f64), (Edge::CenterX, (r.x0 + r.x1) as f64 / 2.0)]
+    };
+    let ys = |r: &PxRect| {
+        [(Edge::Top, r.y0 as f64), (Edge::Bottom, r.y1 as f64), (Edge::CenterY, (r.y0 + r.y1) as f64 / 2.0)]
+    };
+    let mut out = Vec::new();
+    for (i, o) in others.iter().enumerate() {
+        for (lines, theirs) in [(xs(&target), xs(o)), (ys(&target), ys(o))] {
+            for (edge, at) in lines {
+                let center = matches!(edge, Edge::CenterX | Edge::CenterY);
+                // Centers line up with centers; edges with either edge.
+                let hit = theirs.iter().find(|(e, v)| {
+                    (center == matches!(e, Edge::CenterX | Edge::CenterY)) && (v - at).abs() <= tolerance
+                });
+                if let Some((_, v)) = hit {
+                    out.push(Alignment { edge, at: *v, other: i });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The other boxes as wide as `target`, and those as high, within
+/// `tolerance` pixels.
+pub fn same_sizes(target: PxRect, others: &[PxRect], tolerance: usize) -> (Vec<usize>, Vec<usize>) {
+    let close = |a: usize, b: usize| a.abs_diff(b) <= tolerance;
+    let wide = others.iter().enumerate().filter(|(_, o)| close(o.width(), target.width())).map(|(i, _)| i).collect();
+    let high = others.iter().enumerate().filter(|(_, o)| close(o.height(), target.height())).map(|(i, _)| i).collect();
+    (wide, high)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_alignments() {
+        let target = rect(100, 100, 200, 150);
+        let others = [
+            rect(100, 300, 160, 340), // left edges
+            rect(0, 150, 50, 180),    // target's bottom meets its top
+            rect(125, 0, 175, 20),    // centered above
+            rect(400, 400, 450, 450), // nothing in common
+        ];
+        let found = alignments(target, &others, 1.0);
+        assert!(found.contains(&Alignment { edge: Edge::Left, at: 100.0, other: 0 }));
+        assert!(found.contains(&Alignment { edge: Edge::Bottom, at: 150.0, other: 1 }));
+        assert!(found.contains(&Alignment { edge: Edge::CenterX, at: 150.0, other: 2 }));
+        assert!(!found.iter().any(|a| a.other == 3));
+        assert!(Edge::CenterX.vertical() && !Edge::Top.vertical());
+        // Within the tolerance.
+        assert_eq!(alignments(rect(0, 0, 10, 10), &[rect(1, 50, 9, 60)], 1.0).len(), 3);
+    }
+
+    #[test]
+    fn finds_same_sizes() {
+        let (wide, high) =
+            same_sizes(rect(0, 0, 100, 40), &[rect(5, 5, 105, 30), rect(0, 0, 60, 41), rect(0, 0, 3, 3)], 1);
+        assert_eq!(wide, vec![0]);
+        assert_eq!(high, vec![1]);
+    }
 
     fn rect(x0: usize, y0: usize, x1: usize, y1: usize) -> PxRect {
         PxRect { x0, y0, x1, y1 }

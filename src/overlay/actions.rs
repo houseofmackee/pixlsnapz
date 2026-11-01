@@ -192,6 +192,77 @@ pub(super) fn send_to_cleanshotz() {
     }
 }
 
+/// Asks for a name in a small prompt above the overlay (the pointer shows
+/// while it is open). `None` when cancelled or left empty.
+/// Runs a modal panel over the overlay. `runModal` puts the panel at the
+/// modal panel level, so the overlay steps down below it meanwhile; then the
+/// overlay gets its level and the keyboard back.
+fn prompt<T>(run: impl FnOnce() -> T) -> T {
+    let windows =
+        SESSION.with(|s| s.borrow().as_ref().map(|s| s.overlays.iter().map(|o| o.window.clone()).collect::<Vec<_>>()));
+    let windows = windows.unwrap_or_default();
+    for w in &windows {
+        w.setLevel(objc2_app_kit::NSModalPanelWindowLevel - 1);
+    }
+    NSCursor::unhide();
+    let result = run();
+    NSCursor::hide();
+    blank_cursor().set();
+    for w in &windows {
+        w.setLevel(LEVEL);
+    }
+    let key = SESSION.with(|s| {
+        s.borrow().as_ref().map(|s| (s.overlays[s.active].window.clone(), s.overlays[s.active].view.clone()))
+    });
+    if let Some((window, view)) = key {
+        window.makeKeyAndOrderFront(None);
+        window.makeFirstResponder(Some(&view));
+    }
+    result
+}
+
+/// ⇧S: asks for a name (typed on the overlay itself: a separate window
+/// would not reliably get the keyboard, as PixlSnapz is not the active app)
+/// to save what is on screen as a set.
+pub(super) fn save_set() {
+    let sets = crate::items::SavedSets::load_from(&crate::items::SavedSets::path());
+    update(|s| {
+        if s.items.is_empty() {
+            s.toast(t!("Measure something first"));
+            return;
+        }
+        let suggestion = s.current_set.clone().unwrap_or_else(|| sets.unused_name(&t!("Set")));
+        announce(&format!("{} {suggestion}", t!("Save these measurements and guides as")));
+        s.naming = Some((suggestion, true));
+    });
+}
+
+/// Return while naming a set: saves it.
+pub(super) fn commit_set() {
+    let Some(name) = SESSION.with(|s| s.borrow_mut().as_mut().and_then(|s| s.naming.take())).map(|(n, _)| n) else {
+        return;
+    };
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        redraw_all();
+        return;
+    }
+    let path = crate::items::SavedSets::path();
+    let mut sets = crate::items::SavedSets::load_from(&path);
+    let items = SESSION.with(|s| s.borrow().as_ref().map(|s| s.saved().items)).unwrap_or_default();
+    sets.put(&name, items);
+    match sets.save_to(&path) {
+        Ok(()) => update(|s| {
+            s.current_set = Some(name.clone());
+            s.toast(t!("Saved set {name}", name));
+        }),
+        Err(e) => {
+            tracing::warn!("saving sets: {e:#}");
+            update(|s| s.toast(t!("Could not save the set")));
+        }
+    }
+}
+
 /// Loads the design overlay image at `path`: the image and its size in
 /// pixels (for vector images, at 2 pixels per point).
 pub(super) fn load_overlay_image(path: &str) -> Option<(Retained<NSImage>, f64, f64)> {
@@ -217,23 +288,13 @@ pub(super) fn choose_overlay_image() {
     panel.setCanChooseFiles(true);
     panel.setCanChooseDirectories(false);
     panel.setMessage(Some(&NSString::from_str(&t!("Choose a design image to lay over the screen"))));
-    panel.setLevel(LEVEL + 1);
-    NSCursor::unhide();
-    let chosen = if panel.runModal() == objc2_app_kit::NSModalResponseOK {
-        panel.URL().and_then(|u| u.path()).map(|p| p.to_string())
-    } else {
-        None
-    };
-    NSCursor::hide();
-    blank_cursor().set();
-    // The panel took the keyboard; give it back to the overlay.
-    let key = SESSION.with(|s| {
-        s.borrow().as_ref().map(|s| (s.overlays[s.active].window.clone(), s.overlays[s.active].view.clone()))
+    let chosen = prompt(|| {
+        if panel.runModal() == objc2_app_kit::NSModalResponseOK {
+            panel.URL().and_then(|u| u.path()).map(|p| p.to_string())
+        } else {
+            None
+        }
     });
-    if let Some((window, view)) = key {
-        window.makeKeyAndOrderFront(None);
-        window.makeFirstResponder(Some(&view));
-    }
     let Some(path) = chosen else { return };
     match load_overlay_image(&path) {
         Some(image) => update(|s| {

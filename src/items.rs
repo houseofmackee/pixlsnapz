@@ -113,6 +113,84 @@ impl SavedSession {
     }
 }
 
+/// A named set of measurements and guides, saved for later (⇧S).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NamedSet {
+    pub name: String,
+    #[serde(default)]
+    pub items: Vec<SavedItem>,
+}
+
+impl NamedSet {
+    /// The set as a saved session, to place on the current displays.
+    pub fn session(&self) -> SavedSession {
+        SavedSession { items: self.items.clone() }
+    }
+}
+
+/// All saved sets, in the order they were first saved.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SavedSets {
+    #[serde(default)]
+    pub sets: Vec<NamedSet>,
+}
+
+impl SavedSets {
+    pub fn path() -> PathBuf {
+        Settings::path().with_file_name("sets.toml")
+    }
+
+    pub fn load_from(path: &Path) -> SavedSets {
+        std::fs::read_to_string(path).ok().and_then(|t| toml::from_str(&t).ok()).unwrap_or_default()
+    }
+
+    pub fn save_to(&self, path: &Path) -> Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        }
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, toml::to_string(self)?).with_context(|| format!("writing {}", tmp.display()))?;
+        std::fs::rename(&tmp, path).with_context(|| format!("writing {}", path.display()))?;
+        Ok(())
+    }
+
+    /// The set called `name` (ignoring case).
+    pub fn get(&self, name: &str) -> Option<&NamedSet> {
+        self.sets.iter().find(|s| s.name.eq_ignore_ascii_case(name))
+    }
+
+    /// Saves `items` as `name`, replacing a set of that name.
+    pub fn put(&mut self, name: &str, items: Vec<SavedItem>) {
+        let name = name.trim();
+        match self.sets.iter_mut().find(|s| s.name.eq_ignore_ascii_case(name)) {
+            Some(set) => set.items = items,
+            None => self.sets.push(NamedSet { name: name.to_string(), items }),
+        }
+    }
+
+    /// Removes the set called `name`; whether there was one.
+    pub fn remove(&mut self, name: &str) -> bool {
+        let before = self.sets.len();
+        self.sets.retain(|s| !s.name.eq_ignore_ascii_case(name));
+        self.sets.len() != before
+    }
+
+    /// The set after the one called `current` (the first one when there is
+    /// none, or after the last one).
+    pub fn next_after(&self, current: Option<&str>) -> Option<&NamedSet> {
+        let i = current.and_then(|c| self.sets.iter().position(|s| s.name.eq_ignore_ascii_case(c)));
+        match i {
+            Some(i) => self.sets.get((i + 1) % self.sets.len()),
+            None => self.sets.first(),
+        }
+    }
+
+    /// "Set 1", "Set 2", ...: the first name not taken.
+    pub fn unused_name(&self, base: &str) -> String {
+        (1..).map(|n| format!("{base} {n}")).find(|name| self.get(name).is_none()).unwrap_or_default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,6 +252,33 @@ mod tests {
             session.place(&displays),
             vec![(1, Item::VerticalGuide { x: 1 }), (0, Item::VerticalGuide { x: 2 })]
         );
+    }
+
+    #[test]
+    fn saved_sets() {
+        let guide = |x| vec![saved(1, 200, Item::VerticalGuide { x })];
+        let mut sets = SavedSets::default();
+        assert_eq!(sets.unused_name("Set"), "Set 1");
+        sets.put("Header", guide(1));
+        sets.put(" Footer ", guide(2));
+        sets.put("header", guide(3));
+        assert_eq!(sets.sets.len(), 2);
+        assert_eq!(sets.get("HEADER").unwrap().items, guide(3));
+        assert_eq!(sets.get("footer").unwrap().name, "Footer");
+        assert_eq!(sets.next_after(None).unwrap().name, "Header");
+        assert_eq!(sets.next_after(Some("Header")).unwrap().name, "Footer");
+        assert_eq!(sets.next_after(Some("Footer")).unwrap().name, "Header");
+        assert_eq!(sets.unused_name("Set"), "Set 1");
+        sets.put("Set 1", Vec::new());
+        assert_eq!(sets.unused_name("Set"), "Set 2");
+        assert!(sets.remove("footer"));
+        assert!(!sets.remove("footer"));
+
+        let dir = tempdir();
+        let path = dir.join("sets.toml");
+        sets.save_to(&path).unwrap();
+        assert_eq!(SavedSets::load_from(&path), sets);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     fn tempdir() -> PathBuf {
