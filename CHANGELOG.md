@@ -7,53 +7,49 @@ the GitHub release shows.
 
 ## [Unreleased]
 
-### Added
-
-- A line ruler: ⌥-drag, or press L for the line tool, to measure the
-  length and angle of any line, with a protractor arc. ⇧ snaps it to 45°.
-- ⌥ plus an arrow key jumps the pointer to the next edge.
-- Scrolling changes the edge tolerance.
-- Press X to measure only horizontally or only vertically.
-- Colors can be copied as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code
-  (⇧P switches), and ⌥P copies the average color of the last area.
-- The loupe shows the pointer's coordinates and zooms from 4× to 32×
-  (- and +).
-- R brings back the previous session's measurements and guides even
-  after PixlSnapz restarts.
-- A contrast checker: K on two colors copies their WCAG contrast ratio
-  and grade, with a live readout in between.
-- Millimeters and inches, from the size each display reports or a PPI
-  you set, and a design zoom (25% to 400%) to measure designs in their
-  own units.
-- Square and column layout grids (O), over the screen or inside the last
-  area.
-- B keeps the measurements on screen after measuring, letting clicks
-  through; the next session picks them up again.
-- A Settings window (⌘, in the menu) with every option and a shortcut
-  recorder, and `pixlsnapz settings` to open it.
-- A circle tool (E): radius and diameter from the center.
-- Screenshots of areas include the measurements (M turns that off).
-- Recent Colors in the menu bar icon's menu: the last 20 copied colors.
-- The loupe can show how people with color vision deficiencies see the
-  screen (⇧Z).
-- The shortcut can be turned off in chosen apps, from the menu or
-  Settings, so they get the keys.
-
-### Fixed
-
-- The Settings window is split into tabs (General, Measuring, Colors &
-  Loupe, Grid, Screenshots), so it fits on small screens.
-- Measuring no longer ends when PixlSnapz itself becomes active.
-- Screenshots for measuring leave out PixlSnapz's own windows.
-
 ## [0.1.0] - 2026-11-01
 
-First release: distances to the nearest edges, areas that snap to their
-content, kept measurements, guides with distances, a crosshair for
-alignment, a loupe with color picking, area screenshots, freeze screen,
-points or pixels, aspect ratios, adjustable edge tolerance, restoring the
-previous session, multiple displays, and a customizable global shortcut.
-The pointer is hidden while measuring.
+First release of PixlSnapz, a screen ruler for Apple silicon Macs
+(macOS 14 or later). Press ⇧⌘1 anywhere to measure.
+
+### Measuring
+
+- Distances from the pointer to the nearest edges, with the pointer
+  hidden so nothing covers the spot the lines cross.
+- Areas that snap to their content when you drag over them (⌘ or a
+  right-drag measures exactly what you drag; ⇧ makes a square, Space
+  moves it).
+- A line ruler for length and angle (⌥-drag, or L), with ⇧ snapping to
+  45°, and a circle tool for radius and diameter (E).
+- Kept measurements (click), guides with the distances between them
+  (V and H), and a crosshair for checking alignment (hold ⇧).
+- ⌥ plus an arrow key jumps to the next edge; X measures one direction at
+  a time.
+- Points, pixels, millimeters, or inches, with a design zoom to measure
+  designs in their own units, and adjustable edge tolerance (scroll, or
+  [ and ]).
+- Square and column layout grids (O).
+- B keeps the measurements on screen while you work, letting clicks
+  through; R brings back the previous session, even after a restart.
+
+### Colors
+
+- A loupe with the pointer's color and coordinates, zooming from 4× to
+  32×, and a preview of how people with color vision deficiencies see
+  the screen (⇧Z).
+- Colors copy as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code, including
+  the average color of an area, and the last 20 are under Recent Colors
+  in the menu bar icon's menu.
+- A contrast checker (K) that copies the WCAG ratio and grade.
+
+### Everything else
+
+- Screenshots of areas with the measurements drawn in (⌘S saves, ⇧⌘C
+  copies).
+- A Settings window with every option in tabs and a shortcut recorder;
+  the shortcut can be turned off in chosen apps.
+- Freeze screen, aspect ratios, multiple displays, launch at login, and
+  `pixlsnapz measure` and `pixlsnapz settings` for scripts and launchers.
 
 [Unreleased]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/houseofmackee/pixlsnapz/releases/tag/v0.1.0
