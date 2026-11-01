@@ -20,7 +20,12 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Colors**: P copies the color under the pointer and ⌥P the average color of the last area, as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code (⇧P switches)
 - **Screenshots**: ⌘S saves the last area as a PNG on the Desktop (⇧⌘C copies it); hold ⌥ for padding around it
 - **Freeze screen**: measure a still copy of the screen, so menus and animations stay put
-- **Points or pixels**, optional units (`pt`, `px`), and the aspect ratio of areas (`16:9`)
+- **Contrast checker**: press K on one color and K again on another to copy the WCAG contrast ratio and grade, such as `4.54:1  AA`; a live readout with both swatches follows the pointer in between
+- **Units**: points, pixels, millimeters, or inches (real sizes from what each display reports, or a PPI you set), optional unit labels, and the aspect ratio of areas (`16:9`)
+- **Design zoom**: measure a design shown at 200% (or 25% to 400%) in its own units
+- **Grids**: press O for a square grid or a column layout grid (columns, gutter, and margin are adjustable), over the whole screen or inside the last area
+- **Keep on screen**: press B to stop measuring but leave the measurements up while you keep working; clicks go through them, and the next measuring session picks them up again
+- **Settings window** with every option and a shortcut recorder
 - **Adjustable edge tolerance** for shadows, gradients, and low-contrast edges: scroll, or press [ and ]
 - **Restore** the measurements and guides of the previous session (R), even after a restart
 - Multiple displays with different scales, including over full-screen apps
@@ -61,8 +66,11 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | Z | Loupe on or off |
 | - and + | Loupe zoom out and in |
 | F | Freeze screen on or off |
-| U | Points or pixels |
+| U | Points, pixels, millimeters, inches |
 | A | Aspect ratio on or off |
+| K | Contrast: pick the first color, then compare and copy |
+| O | Grid: off, square, columns |
+| B | Keep the measurements on screen and stop measuring |
 | S | Snapping on or off |
 | Scroll, [ and ] | Lower or raise the edge tolerance |
 | ⌫, ⌘Z | Remove the last measurement or guide |
@@ -71,15 +79,17 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | ? | Show or hide the shortcut hints |
 | Esc, right click | Finish |
 
-From a script or a launcher such as Raycast or Alfred, `PixlSnapz.app/Contents/MacOS/pixlsnapz measure` starts measuring in the running app.
+From a script or a launcher such as Raycast or Alfred, `PixlSnapz.app/Contents/MacOS/pixlsnapz measure` starts measuring in the running app, and `pixlsnapz settings` opens Settings.
+
+Measurements kept on screen with B stay until you measure again (they come back for editing) or choose Clear Kept Measurements in the menu bar icon's menu.
 
 ## Settings
 
-The menu bar icon's menu has the common settings. All of them live in `~/Library/Application Support/PixlSnapz/settings.toml` (Open Settings File… in the menu); changes apply the next time you measure or open the menu.
+Choose **Settings…** (⌘,) in the menu bar icon's menu for every option, including recording a new shortcut; the menu itself has the common ones. Everything is saved in `~/Library/Application Support/PixlSnapz/settings.toml` (Open Settings File in the Settings window), and changes made there by hand apply the next time you measure or open the menu.
 
 ```toml
 shortcut = "shift+cmd+1"     # modifiers: cmd, shift, opt, ctrl; keys: a to z, 0 to 9, f1 to f12, punctuation, space
-units = "points"             # or "pixels"
+units = "points"             # or "pixels", "millimeters", "inches"
 tolerance = 8                # 0 to 255; how different a color must be to count as an edge
 snap_areas = true
 show_hints = true
@@ -92,6 +102,13 @@ screenshot_folder = ""       # empty for the Desktop; "~/Pictures/Measurements" 
 axes = "both"                # or "horizontal", "vertical"
 color_format = "hex"         # or "rgb", "hsl", "swiftui", "appkit"
 loupe_zoom = 8               # 4, 6, 8, 12, 16, 24, or 32
+design_zoom = 100            # percent; lengths are divided by it
+screen_ppi = 0.0             # 0 uses the size each display reports
+grid = "off"                 # or "square", "columns"
+grid_size = 8.0              # points
+grid_columns = 12
+grid_gutter = 20.0           # points
+grid_margin = 0.0            # points
 ```
 
 The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R.
@@ -114,11 +131,11 @@ Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings fo
 ## Development
 
 ```sh
-cargo test                     # edge detection, snapping, edge jumps, lines, colors, saved sessions, settings, and shortcuts
+cargo test                     # edge detection, snapping, edge jumps, lines, units, grids, colors, contrast, saved sessions, settings, and shortcuts
 cargo clippy --all-targets
 ```
 
-The edge detection (`src/measure.rs`) works on a plain RGBA buffer and has no AppKit dependency, so it is fully unit tested. The rest is AppKit through `objc2`: `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit, `src/overlay.rs` shows one transparent, non-activating panel per display and draws the measurements, and `src/app.rs` owns the menu bar item and the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission).
+The edge detection (`src/measure.rs`) works on a plain RGBA buffer and has no AppKit dependency, so it is fully unit tested. The rest is AppKit through `objc2`: `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit, `src/overlay.rs` shows one transparent, non-activating panel per display and draws the measurements, `src/settings_window.rs` is the Settings window, and `src/app.rs` owns the menu bar item and the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission).
 
 GitHub Actions runs `cargo fmt --check`, `cargo clippy -D warnings` (debug and release), `cargo test`, a bundle build, and `cargo deny check` on every push to main and every pull request.
 

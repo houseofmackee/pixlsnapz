@@ -25,16 +25,19 @@ use objc2_core_graphics::CGImage;
 use objc2_foundation::{NSDictionary, NSNumber, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use crate::capture::{self, Shot};
-use crate::color::{ColorFormat, average};
+use crate::color::{ColorFormat, average, contrast_text};
 use crate::items::{Display, Item, SavedItem, SavedSession};
 use crate::measure::{
-    Cross, Direction, PxRect, aspect_ratio, clip_cross, format_angle, format_length, line_angle, line_length,
-    next_edge, snap_45, snap_to,
+    Cross, Direction, PxRect, Scale, aspect_ratio, clip_cross, columns, format_angle, format_length, grid_lines,
+    line_angle, line_length, next_edge, snap_45, snap_to,
 };
-use crate::settings::{Axes, Settings, Units};
+use crate::settings::{Axes, Grid, Settings, Units};
 
 /// `NSScreenSaverWindowLevel`: above menus, the Dock and full-screen apps.
 const LEVEL: isize = 1000;
+/// `NSStatusWindowLevel`, for measurements kept on screen: above normal
+/// windows, below menus.
+const KEPT_LEVEL: isize = 25;
 const TOAST_TIME: Duration = Duration::from_millis(1400);
 /// A drag shorter than this (in points) counts as a click.
 const CLICK_SLOP: f64 = 3.0;
@@ -116,12 +119,16 @@ define_class!(
         // panel, so the view also shows an invisible cursor.
         #[unsafe(method(resetCursorRects))]
         fn reset_cursor_rects(&self) {
-            self.addCursorRect_cursor(self.bounds(), &blank_cursor());
+            if is_measuring() {
+                self.addCursorRect_cursor(self.bounds(), &blank_cursor());
+            }
         }
 
         #[unsafe(method(cursorUpdate:))]
         fn cursor_update(&self, _event: &NSEvent) {
-            blank_cursor().set();
+            if is_measuring() {
+                blank_cursor().set();
+            }
         }
 
         #[unsafe(method(mouseEntered:))]
@@ -182,7 +189,9 @@ define_class!(
 
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
-            key_down(event);
+            if is_measuring() {
+                key_down(event);
+            }
         }
 
         #[unsafe(method(keyUp:))]
@@ -235,6 +244,9 @@ impl OverlayView {
     }
 
     fn moved(&self, event: &NSEvent) {
+        if !is_measuring() {
+            return;
+        }
         blank_cursor().set();
         let p = self.location(event);
         let index = self.index();
@@ -247,6 +259,9 @@ impl OverlayView {
     }
 
     fn drag_started(&self, event: &NSEvent) {
+        if !is_measuring() {
+            return;
+        }
         blank_cursor().set();
         let p = self.location(event);
         let index = self.index();
@@ -260,6 +275,9 @@ impl OverlayView {
     }
 
     fn dragged(&self, event: &NSEvent) {
+        if !is_measuring() {
+            return;
+        }
         blank_cursor().set();
         let p = self.location(event);
         let shift = event.modifierFlags().contains(NSEventModifierFlags::Shift);
@@ -283,6 +301,9 @@ impl OverlayView {
     }
 
     fn drag_ended(&self, event: &NSEvent, right: bool) {
+        if !is_measuring() {
+            return;
+        }
         let p = self.location(event);
         let no_snap = right || event.modifierFlags().contains(NSEventModifierFlags::Command);
         let index = self.index();
@@ -333,6 +354,8 @@ struct Overlay {
     image: Retained<NSImage>,
     /// Pixels per point.
     scale: f64,
+    /// Conversion of this display's pixels to the chosen units.
+    measure: Scale,
     /// View size in points.
     size: NSSize,
 }
@@ -385,6 +408,11 @@ struct Session {
     scroll: f64,
     /// Settings changed by scrolling, saved when measuring ends.
     settings_dirty: bool,
+    /// The first color picked for a contrast check (K).
+    contrast: Option<[u8; 3]>,
+    /// Measuring ended but the measurements stay on screen (B); the
+    /// overlay lets clicks through.
+    kept: bool,
 }
 
 impl Session {
@@ -392,21 +420,17 @@ impl Session {
         self.settings.units == Units::Pixels
     }
 
-    fn len_text(&self, px: usize, scale: f64) -> String {
-        let n = format_length(px, scale, self.in_pixels());
-        if self.settings.show_units { format!("{n} {}", if self.in_pixels() { "px" } else { "pt" }) } else { n }
+    fn len_text(&self, px: usize, scale: &Scale) -> String {
+        self.len_text_f64(px as f64, scale)
     }
 
     /// A length given in (possibly fractional) pixels.
-    fn len_text_f64(&self, px: f64, scale: f64) -> String {
-        let v = if self.in_pixels() { px } else { px / scale };
-        let rounded = (v * 10.0).round() / 10.0;
-        let n = if rounded.fract() == 0.0 { format!("{}", rounded as i64) } else { format!("{rounded:.1}") };
-        if self.settings.show_units { format!("{n} {}", if self.in_pixels() { "px" } else { "pt" }) } else { n }
+    fn len_text_f64(&self, px: f64, scale: &Scale) -> String {
+        scale.format(px, self.settings.units, self.settings.show_units)
     }
 
     /// What a cross measures in the given directions.
-    fn cross_text(&self, c: &Cross, axes: Axes, scale: f64) -> String {
+    fn cross_text(&self, c: &Cross, axes: Axes, scale: &Scale) -> String {
         match axes {
             Axes::Both => self.size_text(c.width(), c.height(), scale),
             Axes::Horizontal => self.len_text(c.width(), scale),
@@ -415,7 +439,7 @@ impl Session {
     }
 
     /// Length and angle of a line in pixels: ("120.5", "32.5°").
-    fn line_texts(&self, (x0, y0, x1, y1): (f64, f64, f64, f64), scale: f64) -> (String, String) {
+    fn line_texts(&self, (x0, y0, x1, y1): (f64, f64, f64, f64), scale: &Scale) -> (String, String) {
         let (dx, dy) = (x1 - x0, y1 - y0);
         (self.len_text_f64(line_length(dx, dy), scale), format_angle(line_angle(dx, dy)))
     }
@@ -432,11 +456,12 @@ impl Session {
         self.toast(format!("Edge tolerance: {}", self.settings.tolerance_name()));
     }
 
-    fn size_text(&self, w: usize, h: usize, scale: f64) -> String {
-        let px = self.in_pixels();
-        let mut text = format!("{} × {}", format_length(w, scale, px), format_length(h, scale, px));
+    fn size_text(&self, w: usize, h: usize, scale: &Scale) -> String {
+        let units = self.settings.units;
+        let mut text = format!("{} × {}", scale.format(w as f64, units, false), scale.format(h as f64, units, false));
         if self.settings.show_units {
-            text.push_str(if px { " px" } else { " pt" });
+            text.push(' ');
+            text.push_str(units.suffix());
         }
         text
     }
@@ -512,7 +537,7 @@ impl Session {
     /// The text to copy: the last kept measurement, or the one under the cursor.
     fn copy_text(&self) -> Option<String> {
         let last = self.items.iter().rev().find_map(|(i, item)| {
-            let scale = self.overlays[*i].scale;
+            let scale = &self.overlays[*i].measure;
             match item {
                 Item::Area(r) => Some(self.size_text(r.width(), r.height(), scale)),
                 Item::Cross { cross, axes, .. } => Some(self.cross_text(cross, *axes, scale)),
@@ -528,7 +553,31 @@ impl Session {
         }
         let (x, y) = self.hover_px()?;
         let c = self.cross_at(self.active, x, y);
-        Some(self.cross_text(&c, self.settings.axes, self.overlays[self.active].scale))
+        Some(self.cross_text(&c, self.settings.axes, &self.overlays[self.active].measure))
+    }
+
+    /// The area the grid is drawn in: the last kept area on `index`, or the
+    /// whole display.
+    fn grid_area(&self, index: usize) -> NSRect {
+        let o = &self.overlays[index];
+        self.items
+            .iter()
+            .rev()
+            .find_map(|(i, item)| match item {
+                Item::Area(r) if *i == index => Some(o.rect_pt(*r)),
+                _ => None,
+            })
+            .unwrap_or(NSRect::new(NSPoint::new(0.0, 0.0), o.size))
+    }
+
+    /// Whether the column grid fits in the active display's grid area.
+    fn columns_fit(&self) -> bool {
+        let o = &self.overlays[self.active];
+        let st = &self.settings;
+        let zoom = o.measure.zoom;
+        let area = self.grid_area(self.active);
+        !columns(area.origin.x, area.size.width, st.grid_columns, st.grid_gutter * zoom, st.grid_margin * zoom)
+            .is_empty()
     }
 
     /// The last kept area, if any.
@@ -611,8 +660,67 @@ thread_local! {
     static SESSION: RefCell<Option<Session>> = const { RefCell::new(None) };
 }
 
-pub fn is_active() -> bool {
-    SESSION.with(|s| s.borrow().is_some())
+/// Measuring is under way (not just measurements kept on screen).
+pub fn is_measuring() -> bool {
+    SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| !s.kept))
+}
+
+/// Measurements are kept on screen after measuring ended.
+pub fn has_kept() -> bool {
+    SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.kept))
+}
+
+/// Ends measuring, leaving kept measurements alone.
+pub fn end_measuring() {
+    if is_measuring() {
+        end();
+    }
+}
+
+/// Takes measurements kept on screen off it, returning them.
+fn take_kept() -> Option<SavedSession> {
+    let session = SESSION.with(|s| {
+        let mut s = s.borrow_mut();
+        if s.as_ref().is_some_and(|s| s.kept) { s.take() } else { None }
+    })?;
+    for o in &session.overlays {
+        o.window.orderOut(None);
+    }
+    Some(session.saved())
+}
+
+/// B: ends measuring but keeps the measurements on screen, letting clicks
+/// through, until the next measuring session or Clear Kept Measurements.
+fn keep_on_screen() {
+    let windows = SESSION.with(|s| {
+        let mut s = s.borrow_mut();
+        let s = s.as_mut()?;
+        if s.items.is_empty() {
+            return None;
+        }
+        s.kept = true;
+        s.drag = None;
+        s.hover = None;
+        s.contrast = None;
+        s.toast = None;
+        Some(s.overlays.iter().map(|o| o.window.clone()).collect::<Vec<_>>())
+    });
+    let Some(windows) = windows else {
+        update(|s| s.toast("Measure something first"));
+        return;
+    };
+    for w in &windows {
+        w.setIgnoresMouseEvents(true);
+        w.setLevel(KEPT_LEVEL);
+        w.disableCursorRects();
+        w.resignKeyWindow();
+    }
+    NSCursor::unhide();
+    NSCursor::arrowCursor().set();
+    if let Some(mtm) = MainThreadMarker::new() {
+        NSApplication::sharedApplication(mtm).deactivate();
+    }
+    redraw_all();
 }
 
 /// Runs `f` on the session (if any) and redraws every overlay.
@@ -639,13 +747,15 @@ pub enum StartError {
 
 /// Starts measuring on every display (or ends a running session).
 pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
-    if is_active() {
+    if is_measuring() {
         end();
         return Ok(());
     }
     if !capture::has_permission(true) {
         return Err(StartError::NoPermission);
     }
+    // Measurements kept on screen come back into the new session.
+    let kept = take_kept();
     let started = Instant::now();
     let shots = capture::capture_all().map_err(StartError::Capture)?;
     let settings = Settings::load();
@@ -690,7 +800,8 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
         window.setContentView(Some(&view));
         let scale = shot.frame.width as f64 / size.width;
         let image = NSImage::initWithCGImage_size(NSImage::alloc(), &shot.image, size);
-        overlays.push(Overlay { window, view, shot, image, scale, size });
+        let measure = Scale::new(scale, shot.frame.width, shot.width_mm, settings.screen_ppi, settings.design_zoom);
+        overlays.push(Overlay { window, view, shot, image, scale, measure, size });
     }
     if overlays.is_empty() {
         return Err(StartError::Capture(anyhow::anyhow!("no screen matched a captured display")));
@@ -705,6 +816,10 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
     };
     let windows: Vec<(Retained<OverlayWindow>, Retained<OverlayView>)> =
         overlays.iter().map(|o| (o.window.clone(), o.view.clone())).collect();
+    let displays: Vec<Display> = overlays
+        .iter()
+        .map(|o| Display { id: o.shot.display_id, width: o.shot.frame.width, height: o.shot.frame.height })
+        .collect();
     SESSION.with(|s| {
         *s.borrow_mut() = Some(Session {
             overlays,
@@ -714,11 +829,13 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
             drag: None,
             moving: false,
             shift: false,
-            items: Vec::new(),
+            items: kept.map(|k| k.place(&displays)).unwrap_or_default(),
             toast: None,
             line_tool: false,
             scroll: 0.0,
             settings_dirty: false,
+            contrast: None,
+            kept: false,
         })
     });
 
@@ -756,8 +873,10 @@ pub fn end() {
     for o in &session.overlays {
         o.window.orderOut(None);
     }
-    NSCursor::unhide();
-    NSCursor::arrowCursor().set();
+    if !session.kept {
+        NSCursor::unhide();
+        NSCursor::arrowCursor().set();
+    }
     drop(session);
 }
 
@@ -890,10 +1009,23 @@ fn key_down(event: &NSEvent) {
             s.save_settings();
         }),
         (false, "u") => update(|s| {
-            s.settings.units = if s.in_pixels() { Units::Points } else { Units::Pixels };
-            s.toast(if s.in_pixels() { "Units: pixels" } else { "Units: points" });
+            s.settings.units = s.settings.units.next();
+            let name = s.settings.units.name();
+            s.toast(format!("Units: {name}"));
             s.save_settings();
         }),
+        (false, "k") => pick_contrast(),
+        (false, "o") => update(|s| {
+            s.settings.grid = s.settings.grid.next();
+            let name = s.settings.grid.name();
+            if s.settings.grid == Grid::Columns && !s.columns_fit() {
+                s.toast(format!("Grid: {name} (the columns do not fit in the last area; see Settings)"));
+            } else {
+                s.toast(format!("Grid: {name}"));
+            }
+            s.save_settings();
+        }),
+        (false, "b") => keep_on_screen(),
         (false, "[") | (false, "]") => update(|s| {
             s.settings.step_tolerance(chars == "]");
             s.toast(format!("Edge tolerance: {}", s.settings.tolerance_name()));
@@ -980,6 +1112,30 @@ fn copy_color() {
     if let Some(text) = text {
         set_clipboard_string(&text);
         update(|s| s.toast(format!("Copied {text}")));
+    }
+}
+
+/// K: the first press picks a color, the second compares the color under
+/// the pointer with it and copies the WCAG contrast ratio.
+fn pick_contrast() {
+    let mut copied = None;
+    update(|s| {
+        let Some((x, y)) = s.hover_px() else { return };
+        let here = s.overlays[s.active].shot.frame.pixel(x, y);
+        match s.contrast.take() {
+            None => {
+                s.contrast = Some(here);
+                s.toast("Contrast: point at the other color and press K");
+            }
+            Some(first) => {
+                let text = contrast_text(first, here);
+                s.toast(format!("Copied contrast {text}"));
+                copied = Some(text);
+            }
+        }
+    });
+    if let Some(text) = copied {
+        set_clipboard_string(&text);
     }
 }
 
@@ -1149,7 +1305,7 @@ fn draw_cross(s: &Session, o: &Overlay, x: usize, y: usize, c: &Cross, axes: Axe
     path.stroke();
 
     let accent = color(rgb, 1.0);
-    pill(&s.cross_text(c, axes, o.scale), NSPoint::new(cx + 10.0, cy + 10.0), o.size, 12.0, &accent);
+    pill(&s.cross_text(c, axes, &o.measure), NSPoint::new(cx + 10.0, cy + 10.0), o.size, 12.0, &accent);
 }
 
 /// A measured line with end ticks, a protractor arc from the horizontal at
@@ -1197,7 +1353,7 @@ fn draw_line(s: &Session, o: &Overlay, (x0, y0, x1, y1): (f64, f64, f64, f64), r
         arc.stroke();
     }
 
-    let (len, angle_text) = s.line_texts((x0, y0, x1, y1), o.scale);
+    let (len, angle_text) = s.line_texts((x0, y0, x1, y1), &o.measure);
     let text = format!("{len}  ∠ {angle_text}");
     let mid = NSPoint::new((ax + bx) / 2.0, (ay + by) / 2.0);
     pill_centered(&text, NSPoint::new(mid.x, mid.y - 16.0), o.size, 12.0, &accent);
@@ -1218,14 +1374,20 @@ fn draw_area(s: &Session, o: &Overlay, r: PxRect, rgb: [f64; 3]) {
     let (x0, y0) = (rect.origin.x, rect.origin.y);
     let (x1, y1) = (x0 + rect.size.width, y0 + rect.size.height);
     if rect.size.width > 40.0 {
-        pill_centered(&s.len_text(r.width(), o.scale), NSPoint::new((x0 + x1) / 2.0, y0 - 13.0), o.size, 11.0, &dark());
+        pill_centered(
+            &s.len_text(r.width(), &o.measure),
+            NSPoint::new((x0 + x1) / 2.0, y0 - 13.0),
+            o.size,
+            11.0,
+            &dark(),
+        );
     }
     if rect.size.height > 30.0 {
-        let label = s.len_text(r.height(), o.scale);
+        let label = s.len_text(r.height(), &o.measure);
         let w = pill_size(&label, 11.0).width;
         pill_centered(&label, NSPoint::new(x1 + 6.0 + w / 2.0, (y0 + y1) / 2.0), o.size, 11.0, &dark());
     }
-    let mut text = s.size_text(r.width(), r.height(), o.scale);
+    let mut text = s.size_text(r.width(), r.height(), &o.measure);
     if s.settings.show_aspect_ratio {
         text = format!("{text}  ({})", aspect_ratio(r.width(), r.height()));
     }
@@ -1263,7 +1425,7 @@ fn draw_guides(s: &Session, o: &Overlay, index: usize, rgb: [f64; 3]) {
             let (a, b) = (o.pt(pair[0]), o.pt(pair[1]));
             if b - a > 30.0 {
                 pill_centered(
-                    &s.len_text(pair[1] - pair[0], o.scale),
+                    &s.len_text(pair[1] - pair[0], &o.measure),
                     NSPoint::new((a + b) / 2.0, 52.0),
                     o.size,
                     11.0,
@@ -1280,7 +1442,7 @@ fn draw_guides(s: &Session, o: &Overlay, index: usize, rgb: [f64; 3]) {
             let (a, b) = (o.pt(pair[0]), o.pt(pair[1]));
             if b - a > 24.0 {
                 pill_centered(
-                    &s.len_text(pair[1] - pair[0], o.scale),
+                    &s.len_text(pair[1] - pair[0], &o.measure),
                     NSPoint::new(40.0, (a + b) / 2.0),
                     o.size,
                     11.0,
@@ -1288,6 +1450,74 @@ fn draw_guides(s: &Session, o: &Overlay, index: usize, rgb: [f64; 3]) {
                 );
             }
         }
+    }
+}
+
+/// The layout grid, in the last kept area or over the whole screen.
+fn draw_grid(s: &Session, o: &Overlay, index: usize, rgb: [f64; 3]) {
+    let st = &s.settings;
+    if st.grid == Grid::Off {
+        return;
+    }
+    let area = s.grid_area(index);
+    let (x0, y0) = (area.origin.x, area.origin.y);
+    let (x1, y1) = (x0 + area.size.width, y0 + area.size.height);
+    // Grid sizes are in design units: scale them like measurements.
+    let zoom = o.measure.zoom;
+    match st.grid {
+        Grid::Square => {
+            let path = NSBezierPath::bezierPath();
+            path.setLineWidth(0.5);
+            for x in grid_lines(x0, x1, st.grid_size * zoom) {
+                line(&path, (x, y0), (x, y1));
+            }
+            for y in grid_lines(y0, y1, st.grid_size * zoom) {
+                line(&path, (x0, y), (x1, y));
+            }
+            color(rgb, 0.3).setStroke();
+            path.stroke();
+        }
+        Grid::Columns => {
+            let cols = columns(x0, area.size.width, st.grid_columns, st.grid_gutter * zoom, st.grid_margin * zoom);
+            for (left, right) in cols {
+                let r = NSRect::new(NSPoint::new(left, y0), NSSize::new(right - left, y1 - y0));
+                color(rgb, 0.1).setFill();
+                NSBezierPath::fillRect(r);
+                let edge = NSBezierPath::bezierPath();
+                edge.setLineWidth(0.5);
+                line(&edge, (left, y0), (left, y1));
+                line(&edge, (right, y0), (right, y1));
+                color(rgb, 0.4).setStroke();
+                edge.stroke();
+            }
+        }
+        Grid::Off => {}
+    }
+}
+
+/// The contrast between the first picked color and the one under the
+/// pointer, with both as swatches.
+fn draw_contrast(o: &Overlay, p: NSPoint, first: [u8; 3], here: [u8; 3]) {
+    // Room on the left for the two swatches.
+    let text = format!("         Contrast {}", contrast_text(first, here));
+    let r = pill(&text, NSPoint::new(p.x + 12.0, p.y + 36.0), o.size, 12.0, &dark());
+    for (i, c) in [first, here].iter().enumerate() {
+        let sw = NSRect::new(
+            NSPoint::new(r.origin.x + 7.0 + i as f64 * 14.0, r.origin.y + (r.size.height - 12.0) / 2.0),
+            NSSize::new(12.0, 12.0),
+        );
+        NSColor::colorWithSRGBRed_green_blue_alpha(
+            f64::from(c[0]) / 255.0,
+            f64::from(c[1]) / 255.0,
+            f64::from(c[2]) / 255.0,
+            1.0,
+        )
+        .setFill();
+        let path = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(sw, 2.0, 2.0);
+        path.fill();
+        NSColor::colorWithWhite_alpha(1.0, 0.8).setStroke();
+        path.setLineWidth(0.5);
+        path.stroke();
     }
 }
 
@@ -1383,11 +1613,12 @@ fn draw_loupe(s: &Session, o: &Overlay, x: usize, y: usize, cursor: NSPoint, rgb
     pill(&text, NSPoint::new(origin.x, origin.y + side + 5.0), o.size, 11.0, &dark());
 }
 
-const HINTS: [&str; 2] = [
+const HINTS: [&str; 3] = [
     "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  ⇧: crosshair, square, 45°  ·  Click: keep  ·  \
-     V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance",
-    "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  Z loupe  ·  - + zoom  ·  \
-     F freeze  ·  U units  ·  ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done",
+     V H: guides  ·  ⌥ arrows: next edge",
+    "X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  \
+     P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast",
+    "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done",
 ];
 
 fn draw(index: usize) {
@@ -1397,10 +1628,11 @@ fn draw(index: usize) {
         let Some(o) = s.overlays.get(index) else { return };
         let rgb = s.settings.rgb();
 
-        if s.settings.freeze {
+        if s.settings.freeze && !s.kept {
             o.image.drawInRect(NSRect::new(NSPoint::new(0.0, 0.0), o.size));
         }
 
+        draw_grid(s, o, index, rgb);
         draw_guides(s, o, index, rgb);
         for (_, item) in s.items.iter().filter(|(i, _)| *i == index) {
             match item {
@@ -1409,6 +1641,10 @@ fn draw(index: usize) {
                 Item::Line { x0, y0, x1, y1 } => draw_line(s, o, (*x0, *y0, *x1, *y1), rgb),
                 Item::VerticalGuide { .. } | Item::HorizontalGuide { .. } => {}
             }
+        }
+
+        if s.kept {
+            return;
         }
 
         if index == s.active {
@@ -1429,13 +1665,16 @@ fn draw(index: usize) {
                 if s.settings.loupe {
                     draw_loupe(s, o, x, y, p, rgb);
                 }
+                if let Some(first) = s.contrast {
+                    draw_contrast(o, p, first, o.shot.frame.pixel(x, y));
+                }
             }
         }
 
         if s.settings.show_hints {
             for (row, hint) in HINTS.iter().enumerate() {
                 let w = pill_size(hint, 11.0).width;
-                let y = o.size.height - 58.0 + row as f64 * 22.0;
+                let y = o.size.height - 80.0 + row as f64 * 22.0;
                 pill(hint, NSPoint::new((o.size.width - w) / 2.0, y), o.size, 11.0, &dark());
             }
         }

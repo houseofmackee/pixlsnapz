@@ -15,12 +15,12 @@ use objc2::AllocAnyThread;
 use objc2::rc::Retained;
 use objc2_core_foundation::{CFRetained, CGPoint, CGRect, CGSize};
 use objc2_core_graphics::{
-    CGBitmapContextCreate, CGColorSpace, CGContext, CGImage, CGImageAlphaInfo, CGImageByteOrderInfo,
-    CGPreflightScreenCaptureAccess, CGRequestScreenCaptureAccess, kCGColorSpaceSRGB,
+    CGBitmapContextCreate, CGColorSpace, CGContext, CGDisplayScreenSize, CGImage, CGImageAlphaInfo,
+    CGImageByteOrderInfo, CGPreflightScreenCaptureAccess, CGRequestScreenCaptureAccess, kCGColorSpaceSRGB,
 };
 use objc2_foundation::{NSArray, NSError};
 use objc2_screen_capture_kit::{
-    SCContentFilter, SCDisplay, SCScreenshotManager, SCShareableContent, SCStreamConfiguration,
+    SCContentFilter, SCDisplay, SCRunningApplication, SCScreenshotManager, SCShareableContent, SCStreamConfiguration,
 };
 
 use crate::measure::Frame;
@@ -39,6 +39,8 @@ pub struct Shot {
     pub frame: Frame,
     /// The same pixels as an image, for the magnifier.
     pub image: CFRetained<CGImage>,
+    /// The display's physical width in millimeters (0 when unknown).
+    pub width_mm: f64,
 }
 
 /// Whether the app may record the screen. Asks macOS for permission (and
@@ -79,11 +81,17 @@ fn shareable_content() -> Result<Retained<SCShareableContent>> {
 /// Captures every display. Displays that fail are logged and left out.
 pub fn capture_all() -> Result<Vec<Shot>> {
     let content = shareable_content()?;
+    // Leave out PixlSnapz's own windows, such as measurements kept on screen.
+    let own_pid = std::process::id() as i32;
+    // SAFETY: plain property reads.
+    let own: Vec<Retained<SCRunningApplication>> =
+        unsafe { content.applications().iter().filter(|a| a.processID() == own_pid).collect() };
+    let own = NSArray::from_retained_slice(&own);
     // SAFETY: plain property read.
     let displays = unsafe { content.displays() };
     let mut shots = Vec::new();
     for display in displays.iter() {
-        match capture_display(&display) {
+        match capture_display(&display, &own) {
             Ok(shot) => shots.push(shot),
             Err(e) => {
                 // SAFETY: plain property read.
@@ -98,12 +106,15 @@ pub fn capture_all() -> Result<Vec<Shot>> {
     Ok(shots)
 }
 
-fn capture_display(display: &SCDisplay) -> Result<Shot> {
-    // SAFETY: a valid display and an empty exclusion list; plain property reads
-    // and configuration setters.
+fn capture_display(display: &SCDisplay, excluded: &NSArray<SCRunningApplication>) -> Result<Shot> {
+    // SAFETY: a valid display and exclusion list; plain property reads.
     let (filter, width, height, display_id) = unsafe {
-        let filter =
-            SCContentFilter::initWithDisplay_excludingWindows(SCContentFilter::alloc(), display, &NSArray::new());
+        let filter = SCContentFilter::initWithDisplay_excludingApplications_exceptingWindows(
+            SCContentFilter::alloc(),
+            display,
+            excluded,
+            &NSArray::new(),
+        );
         let scale = f64::from(filter.pointPixelScale());
         let width = (display.width() as f64 * scale).round() as usize;
         let height = (display.height() as f64 * scale).round() as usize;
@@ -134,7 +145,8 @@ fn capture_display(display: &SCDisplay) -> Result<Shot> {
     let image = rx.recv_timeout(TIMEOUT).map_err(|_| anyhow!("ScreenCaptureKit did not respond in time"))?.0;
     let image = image.map_err(|e| anyhow!(e))?;
     let frame = to_frame(&image)?;
-    Ok(Shot { display_id, frame, image })
+    let width_mm = CGDisplayScreenSize(display_id).width;
+    Ok(Shot { display_id, frame, image, width_mm })
 }
 
 /// Draws `image` into an sRGB RGBA8 buffer.

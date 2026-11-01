@@ -20,6 +20,22 @@ the GitHub release shows.
   (- and +).
 - R brings back the previous session's measurements and guides even
   after PixlSnapz restarts.
+- A contrast checker: K on two colors copies their WCAG contrast ratio
+  and grade, with a live readout in between.
+- Millimeters and inches, from the size each display reports or a PPI
+  you set, and a design zoom (25% to 400%) to measure designs in their
+  own units.
+- Square and column layout grids (O), over the screen or inside the last
+  area.
+- B keeps the measurements on screen after measuring, letting clicks
+  through; the next session picks them up again.
+- A Settings window (⌘, in the menu) with every option and a shortcut
+  recorder, and `pixlsnapz settings` to open it.
+
+### Fixed
+
+- Measuring no longer ends when PixlSnapz itself becomes active.
+- Screenshots for measuring leave out PixlSnapz's own windows.
 
 ## [0.1.0] - 2026-11-01
 

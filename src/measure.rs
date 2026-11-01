@@ -5,6 +5,84 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::settings::Units;
+
+/// How pixels of one display convert to other units.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Scale {
+    /// Pixels per point (2 on Retina displays).
+    pub px_per_pt: f64,
+    /// Millimeters per pixel.
+    pub mm_per_px: f64,
+    /// Design zoom: lengths are divided by it (1 for none).
+    pub zoom: f64,
+}
+
+impl Scale {
+    /// `mm_per_px` from a manual PPI setting, or else from the display's
+    /// reported width in millimeters; 96 PPI when neither is known.
+    pub fn new(px_per_pt: f64, width_px: usize, width_mm: f64, ppi: f64, zoom_percent: u32) -> Scale {
+        let mm_per_px = if ppi > 0.0 {
+            25.4 / ppi
+        } else if width_mm > 0.0 && width_px > 0 {
+            width_mm / width_px as f64
+        } else {
+            25.4 / 96.0
+        };
+        let zoom = if zoom_percent == 0 { 1.0 } else { f64::from(zoom_percent) / 100.0 };
+        Scale { px_per_pt, mm_per_px, zoom }
+    }
+
+    /// A length of `px` pixels in `units`.
+    pub fn value(&self, px: f64, units: Units) -> f64 {
+        let v = match units {
+            Units::Pixels => px,
+            Units::Points => px / self.px_per_pt,
+            Units::Millimeters => px * self.mm_per_px,
+            Units::Inches => px * self.mm_per_px / 25.4,
+        };
+        v / self.zoom
+    }
+
+    /// A length for display: one decimal (two for inches) when needed,
+    /// with the unit's suffix when `suffix` is set.
+    pub fn format(&self, px: f64, units: Units, suffix: bool) -> String {
+        let decimals = if units == Units::Inches { 100.0 } else { 10.0 };
+        let v = (self.value(px, units) * decimals).round() / decimals;
+        // `Display` prints the shortest form: "20", "12.5", "0.5".
+        let text = if v.fract() == 0.0 { format!("{}", v as i64) } else { format!("{v}") };
+        if suffix { format!("{text} {}", units.suffix()) } else { text }
+    }
+}
+
+/// Lines every `step` from `start` up to `end` (inclusive of `start`).
+pub fn grid_lines(start: f64, end: f64, step: f64) -> Vec<f64> {
+    if step <= 0.0 || end <= start {
+        return Vec::new();
+    }
+    let n = ((end - start) / step).floor() as usize;
+    (0..=n).map(|i| start + i as f64 * step).collect()
+}
+
+/// `count` columns in `start..start + width`, with `gutter` between them and
+/// `margin` on both sides, as (left, right) pairs. Empty when they do not fit.
+pub fn columns(start: f64, width: f64, count: u32, gutter: f64, margin: f64) -> Vec<(f64, f64)> {
+    if count == 0 {
+        return Vec::new();
+    }
+    let n = f64::from(count);
+    let column = (width - 2.0 * margin - gutter * (n - 1.0)) / n;
+    if column <= 0.0 {
+        return Vec::new();
+    }
+    (0..count)
+        .map(|i| {
+            let left = start + margin + f64::from(i) * (column + gutter);
+            (left, left + column)
+        })
+        .collect()
+}
+
 /// An RGBA8 screenshot of one display.
 #[derive(Clone)]
 pub struct Frame {
@@ -435,6 +513,32 @@ mod tests {
         let (dx, dy) = snap_45(10.0, -9.0);
         assert!((dx - (-dy)).abs() < 1e-9 && dx > 0.0);
         assert_eq!(snap_45(0.0, 0.0), (0.0, 0.0));
+    }
+
+    #[test]
+    fn scales_to_units() {
+        // A 3456 px wide Retina display that is 345.6 mm wide: 0.1 mm per pixel.
+        let s = Scale::new(2.0, 3456, 345.6, 0.0, 100);
+        assert_eq!(s.format(200.0, Units::Points, false), "100");
+        assert_eq!(s.format(200.0, Units::Pixels, true), "200 px");
+        assert_eq!(s.format(200.0, Units::Millimeters, true), "20 mm");
+        assert_eq!(s.format(254.0, Units::Inches, false), "1");
+        assert_eq!(s.format(127.0, Units::Inches, false), "0.5");
+        // Design zoom 200%: everything halves.
+        let z = Scale::new(2.0, 3456, 345.6, 0.0, 200);
+        assert_eq!(z.format(200.0, Units::Points, false), "50");
+        // A manual PPI wins over the reported size; unknown sizes use 96 PPI.
+        assert!((Scale::new(1.0, 1000, 500.0, 254.0, 100).mm_per_px - 0.1).abs() < 1e-12);
+        assert_eq!(Scale::new(1.0, 1000, 0.0, 0.0, 100).format(96.0, Units::Inches, false), "1");
+    }
+
+    #[test]
+    fn grids() {
+        assert_eq!(grid_lines(0.0, 20.0, 8.0), vec![0.0, 8.0, 16.0]);
+        assert!(grid_lines(0.0, 20.0, 0.0).is_empty());
+        let c = columns(0.0, 100.0, 4, 10.0, 5.0);
+        assert_eq!(c, vec![(5.0, 20.0), (30.0, 45.0), (55.0, 70.0), (80.0, 95.0)]);
+        assert!(columns(0.0, 10.0, 12, 20.0, 0.0).is_empty());
     }
 
     #[test]

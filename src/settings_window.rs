@@ -1,0 +1,504 @@
+//! The Settings window: every setting, including a shortcut recorder.
+//! Each change is saved right away.
+
+use std::cell::RefCell;
+use std::ptr::NonNull;
+
+use block2::RcBlock;
+use objc2::rc::Retained;
+use objc2::runtime::AnyObject;
+use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
+use objc2_app_kit::{
+    NSApplication, NSBackingStoreType, NSButton, NSControlStateValueOff, NSControlStateValueOn, NSEvent, NSEventMask,
+    NSEventModifierFlags, NSFont, NSModalResponseOK, NSOpenPanel, NSPopUpButton, NSSlider, NSTextAlignment,
+    NSTextField, NSView, NSWindow, NSWindowStyleMask,
+};
+use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString};
+
+use crate::color::ColorFormat;
+use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, LOUPE_ZOOMS, Settings, Units};
+use crate::shortcut::{CMD, CONTROL, OPTION, SHIFT, Shortcut};
+
+const WIDTH: f64 = 540.0;
+const LABEL_WIDTH: f64 = 190.0;
+const ROW: f64 = 30.0;
+const KEY_ESCAPE: u16 = 53;
+const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
+
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "PixlSnapzSettingsTarget"]
+    struct Target;
+
+    impl Target {
+        #[unsafe(method(changed:))]
+        fn changed(&self, _sender: Option<&AnyObject>) {
+            controls_changed();
+        }
+
+        #[unsafe(method(recordShortcut:))]
+        fn record_shortcut(&self, _sender: Option<&AnyObject>) {
+            start_recording();
+        }
+
+        #[unsafe(method(chooseFolder:))]
+        fn choose_folder(&self, _sender: Option<&AnyObject>) {
+            choose_folder();
+        }
+
+        #[unsafe(method(openFile:))]
+        fn open_file(&self, _sender: Option<&AnyObject>) {
+            crate::app::open_settings_file();
+        }
+    }
+
+    unsafe impl NSObjectProtocol for Target {}
+);
+
+struct Controls {
+    shortcut: Retained<NSButton>,
+    login: Retained<NSButton>,
+    hints: Retained<NSButton>,
+    units: Retained<NSPopUpButton>,
+    show_units: Retained<NSButton>,
+    design_zoom: Retained<NSPopUpButton>,
+    ppi: Retained<NSTextField>,
+    tolerance: Retained<NSSlider>,
+    tolerance_value: Retained<NSTextField>,
+    snap: Retained<NSButton>,
+    axes: Retained<NSPopUpButton>,
+    aspect: Retained<NSButton>,
+    freeze: Retained<NSButton>,
+    color: Retained<NSPopUpButton>,
+    color_format: Retained<NSPopUpButton>,
+    loupe: Retained<NSButton>,
+    loupe_zoom: Retained<NSPopUpButton>,
+    grid: Retained<NSPopUpButton>,
+    grid_size: Retained<NSTextField>,
+    grid_columns: Retained<NSTextField>,
+    grid_gutter: Retained<NSTextField>,
+    grid_margin: Retained<NSTextField>,
+    folder: Retained<NSTextField>,
+}
+
+struct SettingsWindow {
+    window: Retained<NSWindow>,
+    _target: Retained<Target>,
+    c: Controls,
+}
+
+thread_local! {
+    static WINDOW: RefCell<Option<SettingsWindow>> = const { RefCell::new(None) };
+    /// The key monitor while a shortcut is being recorded.
+    static MONITOR: RefCell<Option<Retained<AnyObject>>> = const { RefCell::new(None) };
+}
+
+fn ns(s: &str) -> Retained<NSString> {
+    NSString::from_str(s)
+}
+
+fn rect(x: f64, y: f64, w: f64, h: f64) -> NSRect {
+    NSRect::new(NSPoint::new(x, y), NSSize::new(w, h))
+}
+
+/// Lays out rows from the top of a (non-flipped) view.
+struct Layout {
+    view: Retained<NSView>,
+    top: f64,
+    mtm: MainThreadMarker,
+}
+
+impl Layout {
+    fn y(&self) -> f64 {
+        self.top - ROW
+    }
+
+    fn section(&mut self, title: &str) {
+        self.top -= 8.0;
+        let label = NSTextField::labelWithString(&ns(title), self.mtm);
+        label.setFont(Some(&NSFont::boldSystemFontOfSize(13.0)));
+        label.setFrame(rect(20.0, self.y() + 4.0, WIDTH - 40.0, 20.0));
+        self.view.addSubview(&label);
+        self.top -= ROW - 4.0;
+    }
+
+    /// A label on the left and `control` (with its width) on the right.
+    fn row(&mut self, title: &str, control: &NSView, width: f64) {
+        let label = NSTextField::labelWithString(&ns(title), self.mtm);
+        label.setAlignment(NSTextAlignment::Right);
+        label.setFrame(rect(20.0, self.y() + 5.0, LABEL_WIDTH, 18.0));
+        self.view.addSubview(&label);
+        let h = control.fittingSize().height.clamp(18.0, 26.0);
+        control.setFrame(rect(LABEL_WIDTH + 30.0, self.y() + (ROW - h) / 2.0, width, h));
+        self.view.addSubview(control);
+        self.top -= ROW;
+    }
+
+    /// A control with no label (checkboxes, which carry their own).
+    fn plain(&mut self, control: &NSView, width: f64) {
+        let h = control.fittingSize().height.clamp(18.0, 26.0);
+        control.setFrame(rect(LABEL_WIDTH + 30.0, self.y() + (ROW - h) / 2.0, width, h));
+        self.view.addSubview(control);
+        self.top -= ROW - 6.0;
+    }
+}
+
+fn popup(titles: &[&str], target: &Target, mtm: MainThreadMarker) -> Retained<NSPopUpButton> {
+    let p = NSPopUpButton::initWithFrame_pullsDown(NSPopUpButton::alloc(mtm), rect(0.0, 0.0, 200.0, 26.0), false);
+    let titles: Vec<Retained<NSString>> = titles.iter().map(|t| ns(t)).collect();
+    p.addItemsWithTitles(&NSArray::from_retained_slice(&titles));
+    // SAFETY: the target outlives the window; the action exists on it.
+    unsafe {
+        p.setTarget(Some(target));
+        p.setAction(Some(sel!(changed:)));
+    }
+    p
+}
+
+fn checkbox(title: &str, target: &Target, mtm: MainThreadMarker) -> Retained<NSButton> {
+    // SAFETY: the target outlives the window; the action exists on it.
+    unsafe { NSButton::checkboxWithTitle_target_action(&ns(title), Some(target), Some(sel!(changed:)), mtm) }
+}
+
+fn button(title: &str, action: objc2::runtime::Sel, target: &Target, mtm: MainThreadMarker) -> Retained<NSButton> {
+    // SAFETY: the target outlives the window; the action exists on it.
+    unsafe { NSButton::buttonWithTitle_target_action(&ns(title), Some(target), Some(action), mtm) }
+}
+
+fn number_field(target: &Target, mtm: MainThreadMarker) -> Retained<NSTextField> {
+    let f = NSTextField::textFieldWithString(&ns(""), mtm);
+    f.setAlignment(NSTextAlignment::Right);
+    // SAFETY: the target outlives the window; the action exists on it.
+    unsafe {
+        f.setTarget(Some(target));
+        f.setAction(Some(sel!(changed:)));
+    }
+    if let Some(cell) = f.cell() {
+        cell.setSendsActionOnEndEditing(true);
+    }
+    f
+}
+
+fn set_check(b: &NSButton, on: bool) {
+    b.setState(if on { NSControlStateValueOn } else { NSControlStateValueOff });
+}
+
+fn is_on(b: &NSButton) -> bool {
+    b.state() == NSControlStateValueOn
+}
+
+fn number_text(v: f64) -> String {
+    if v.fract() == 0.0 { format!("{}", v as i64) } else { format!("{v}") }
+}
+
+/// Shows the Settings window, creating it the first time.
+pub fn show(mtm: MainThreadMarker) {
+    let exists = WINDOW.with(|w| w.borrow().is_some());
+    if !exists {
+        let built = build(mtm);
+        WINDOW.with(|w| *w.borrow_mut() = Some(built));
+    }
+    refresh();
+    let window = WINDOW.with(|w| w.borrow().as_ref().map(|w| w.window.clone()));
+    if let Some(window) = window {
+        let app = NSApplication::sharedApplication(mtm);
+        app.activate();
+        window.makeKeyAndOrderFront(None);
+        // In front even when macOS does not activate the app (a script asked).
+        window.orderFrontRegardless();
+    }
+}
+
+fn build(mtm: MainThreadMarker) -> SettingsWindow {
+    let target: Retained<Target> = unsafe { msg_send![Target::alloc(mtm), init] };
+    let t = &*target;
+    let height = 870.0;
+    // SAFETY: NSWindow's designated initializer.
+    let window: Retained<NSWindow> = unsafe {
+        msg_send![NSWindow::alloc(mtm), initWithContentRect: rect(0.0, 0.0, WIDTH, height),
+            styleMask: NSWindowStyleMask::Titled | NSWindowStyleMask::Closable,
+            backing: NSBackingStoreType::Buffered, defer: false]
+    };
+    // SAFETY: the module keeps the window.
+    unsafe { window.setReleasedWhenClosed(false) };
+    window.setTitle(&ns("PixlSnapz Settings"));
+    let view = NSView::initWithFrame(NSView::alloc(mtm), rect(0.0, 0.0, WIDTH, height));
+    let mut l = Layout { view: view.clone(), top: height - 12.0, mtm };
+
+    let units: Vec<&str> = Units::ALL.iter().map(|u| u.name()).collect();
+    let zooms: Vec<String> = DESIGN_ZOOMS.iter().map(|z| format!("{z}%")).collect();
+    let zooms: Vec<&str> = zooms.iter().map(String::as_str).collect();
+    let axes: Vec<&str> = AXES.iter().map(|a| a.name()).collect();
+    let colors: Vec<&str> = COLORS.iter().map(|c| c.0).collect();
+    let formats: Vec<&str> = ColorFormat::ALL.iter().map(|f| f.name()).collect();
+    let loupe_zooms: Vec<String> = LOUPE_ZOOMS.iter().map(|z| format!("{z}×")).collect();
+    let loupe_zooms: Vec<&str> = loupe_zooms.iter().map(String::as_str).collect();
+    let grids: Vec<&str> = Grid::ALL.iter().map(|g| g.name()).collect();
+
+    let c = Controls {
+        shortcut: button("", sel!(recordShortcut:), t, mtm),
+        login: checkbox("Launch at login", t, mtm),
+        hints: checkbox("Show shortcut hints while measuring", t, mtm),
+        units: popup(&units, t, mtm),
+        show_units: checkbox("Show units (pt, px, mm, in)", t, mtm),
+        design_zoom: popup(&zooms, t, mtm),
+        ppi: number_field(t, mtm),
+        // SAFETY: the target outlives the window; the action exists on it.
+        tolerance: unsafe {
+            NSSlider::sliderWithValue_minValue_maxValue_target_action(
+                8.0,
+                0.0,
+                128.0,
+                Some(t),
+                Some(sel!(changed:)),
+                mtm,
+            )
+        },
+        tolerance_value: NSTextField::labelWithString(&ns(""), mtm),
+        snap: checkbox("Snap areas to their content", t, mtm),
+        axes: popup(&axes, t, mtm),
+        aspect: checkbox("Show the aspect ratio of areas", t, mtm),
+        freeze: checkbox("Freeze the screen while measuring", t, mtm),
+        color: popup(&colors, t, mtm),
+        color_format: popup(&formats, t, mtm),
+        loupe: checkbox("Show the loupe", t, mtm),
+        loupe_zoom: popup(&loupe_zooms, t, mtm),
+        grid: popup(&grids, t, mtm),
+        grid_size: number_field(t, mtm),
+        grid_columns: number_field(t, mtm),
+        grid_gutter: number_field(t, mtm),
+        grid_margin: number_field(t, mtm),
+        folder: NSTextField::labelWithString(&ns(""), mtm),
+    };
+    c.ppi.setPlaceholderString(Some(&ns("Automatic")));
+    c.folder.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingMiddle);
+
+    l.section("General");
+    l.row("Measure shortcut:", &c.shortcut, 220.0);
+    l.plain(&c.login, 280.0);
+    l.plain(&c.hints, 280.0);
+
+    l.section("Measuring");
+    l.row("Units:", &c.units, 160.0);
+    l.plain(&c.show_units, 280.0);
+    l.row("Design zoom:", &c.design_zoom, 160.0);
+    l.row("Screen PPI (mm, in):", &c.ppi, 100.0);
+    l.row("Edge tolerance:", &c.tolerance, 200.0);
+    c.tolerance_value.setFrame(rect(LABEL_WIDTH + 240.0, l.top + 6.0, 90.0, 18.0));
+    l.view.addSubview(&c.tolerance_value);
+    l.plain(&c.snap, 280.0);
+    l.row("Measure:", &c.axes, 160.0);
+    l.plain(&c.aspect, 280.0);
+    l.plain(&c.freeze, 280.0);
+
+    l.section("Appearance");
+    l.row("Guide color:", &c.color, 160.0);
+    l.row("Copy colors as:", &c.color_format, 160.0);
+    l.plain(&c.loupe, 280.0);
+    l.row("Loupe zoom:", &c.loupe_zoom, 100.0);
+
+    l.section("Grid (O while measuring)");
+    l.row("Grid:", &c.grid, 160.0);
+    l.row("Square size (pt):", &c.grid_size, 80.0);
+    l.row("Columns:", &c.grid_columns, 80.0);
+    l.row("Gutter (pt):", &c.grid_gutter, 80.0);
+    l.row("Margin (pt):", &c.grid_margin, 80.0);
+
+    l.section("Screenshots");
+    l.row("Save to:", &c.folder, 200.0);
+    let choose = button("Choose…", sel!(chooseFolder:), t, mtm);
+    choose.setFrame(rect(LABEL_WIDTH + 240.0, l.top, 100.0, 30.0));
+    l.view.addSubview(&choose);
+
+    let open = button("Open Settings File", sel!(openFile:), t, mtm);
+    open.setFrame(rect(WIDTH - 190.0, 16.0, 170.0, 30.0));
+    l.view.addSubview(&open);
+
+    window.setContentView(Some(&view));
+    window.center();
+    SettingsWindow { window, _target: target, c }
+}
+
+/// Shows the current settings in the window (if it is open).
+pub fn refresh() {
+    let s = Settings::load();
+    let login = crate::login_item::is_enabled();
+    let recording = MONITOR.with(|m| m.borrow().is_some());
+    WINDOW.with(|w| {
+        let w = w.borrow();
+        let Some(w) = w.as_ref() else { return };
+        let c = &w.c;
+        if !recording {
+            c.shortcut.setTitle(&ns(&s.shortcut().to_string()));
+        }
+        set_check(&c.login, login);
+        set_check(&c.hints, s.show_hints);
+        c.units.selectItemAtIndex(Units::ALL.iter().position(|u| *u == s.units).unwrap_or(0) as isize);
+        set_check(&c.show_units, s.show_units);
+        let zoom = DESIGN_ZOOMS.iter().position(|z| *z == s.design_zoom).unwrap_or(2);
+        c.design_zoom.selectItemAtIndex(zoom as isize);
+        c.ppi.setStringValue(&ns(&if s.screen_ppi > 0.0 { number_text(s.screen_ppi) } else { String::new() }));
+        c.tolerance.setDoubleValue(f64::from(s.tolerance));
+        c.tolerance_value.setStringValue(&ns(&s.tolerance_name()));
+        set_check(&c.snap, s.snap_areas);
+        c.axes.selectItemAtIndex(AXES.iter().position(|a| *a == s.axes).unwrap_or(0) as isize);
+        set_check(&c.aspect, s.show_aspect_ratio);
+        set_check(&c.freeze, s.freeze);
+        let color = COLORS.iter().position(|(_, hex)| hex.eq_ignore_ascii_case(&s.color));
+        c.color.selectItemAtIndex(color.map_or(-1, |i| i as isize));
+        let format = ColorFormat::ALL.iter().position(|f| *f == s.color_format).unwrap_or(0);
+        c.color_format.selectItemAtIndex(format as isize);
+        set_check(&c.loupe, s.loupe);
+        let lz = LOUPE_ZOOMS.iter().position(|z| *z == s.loupe_zoom).unwrap_or(2);
+        c.loupe_zoom.selectItemAtIndex(lz as isize);
+        c.grid.selectItemAtIndex(Grid::ALL.iter().position(|g| *g == s.grid).unwrap_or(0) as isize);
+        c.grid_size.setStringValue(&ns(&number_text(s.grid_size)));
+        c.grid_columns.setStringValue(&ns(&s.grid_columns.to_string()));
+        c.grid_gutter.setStringValue(&ns(&number_text(s.grid_gutter)));
+        c.grid_margin.setStringValue(&ns(&number_text(s.grid_margin)));
+        c.folder.setStringValue(&ns(&s.screenshot_dir().display().to_string()));
+    });
+}
+
+fn selected<T: Copy>(p: &NSPopUpButton, values: &[T], current: T) -> T {
+    usize::try_from(p.indexOfSelectedItem()).ok().and_then(|i| values.get(i).copied()).unwrap_or(current)
+}
+
+fn positive(field: &NSTextField, current: f64) -> f64 {
+    let v = field.stringValue().to_string().trim().parse::<f64>().unwrap_or(current);
+    if v.is_finite() && v >= 0.0 { v } else { current }
+}
+
+/// Reads every control into the settings and saves them.
+fn controls_changed() {
+    let mut s = Settings::load();
+    let login = WINDOW.with(|w| {
+        let w = w.borrow();
+        let c = &w.as_ref()?.c;
+        s.show_hints = is_on(&c.hints);
+        s.units = selected(&c.units, &Units::ALL, s.units);
+        s.show_units = is_on(&c.show_units);
+        s.design_zoom = selected(&c.design_zoom, DESIGN_ZOOMS, s.design_zoom);
+        s.screen_ppi = positive(&c.ppi, 0.0);
+        s.tolerance = c.tolerance.doubleValue().round().clamp(0.0, 255.0) as u8;
+        s.snap_areas = is_on(&c.snap);
+        s.axes = selected(&c.axes, &AXES, s.axes);
+        s.show_aspect_ratio = is_on(&c.aspect);
+        s.freeze = is_on(&c.freeze);
+        if let Ok(i) = usize::try_from(c.color.indexOfSelectedItem())
+            && let Some((_, hex)) = COLORS.get(i)
+        {
+            s.color = hex.to_string();
+        }
+        s.color_format = selected(&c.color_format, &ColorFormat::ALL, s.color_format);
+        s.loupe = is_on(&c.loupe);
+        s.loupe_zoom = selected(&c.loupe_zoom, LOUPE_ZOOMS, s.loupe_zoom);
+        s.grid = selected(&c.grid, &Grid::ALL, s.grid);
+        s.grid_size = positive(&c.grid_size, s.grid_size).max(1.0);
+        s.grid_columns = (positive(&c.grid_columns, f64::from(s.grid_columns)).round() as u32).clamp(1, 48);
+        s.grid_gutter = positive(&c.grid_gutter, s.grid_gutter);
+        s.grid_margin = positive(&c.grid_margin, s.grid_margin);
+        Some(is_on(&c.login))
+    });
+    let Some(login) = login else { return };
+    if let Err(e) = s.save() {
+        tracing::warn!("saving settings: {e:#}");
+    }
+    if login != crate::login_item::is_enabled()
+        && let Some(message) = crate::login_item::set(login)
+    {
+        crate::app::show_alert("Launch at Login", &message);
+    }
+    crate::app::settings_updated();
+    refresh();
+}
+
+/// Waits for the next key combination and makes it the shortcut.
+fn start_recording() {
+    if MONITOR.with(|m| m.borrow().is_some()) {
+        return;
+    }
+    crate::app::suspend_hotkey();
+    // The keys must come to this window: the click on the recorder lets the
+    // app become active.
+    if let Some(mtm) = MainThreadMarker::new() {
+        NSApplication::sharedApplication(mtm).activate();
+    }
+    WINDOW.with(|w| {
+        if let Some(w) = w.borrow().as_ref() {
+            w.window.makeKeyAndOrderFront(None);
+            w.c.shortcut.setTitle(&ns("Type a shortcut (Esc cancels)"));
+            tracing::debug!("recording a shortcut; settings window key: {}", w.window.isKeyWindow());
+        }
+    });
+    let handler = RcBlock::new(|event: NonNull<NSEvent>| -> *mut NSEvent {
+        // SAFETY: AppKit passes a valid event.
+        let event = unsafe { event.as_ref() };
+        let flags = event.modifierFlags();
+        let mut modifiers = 0;
+        for (flag, bit) in [
+            (NSEventModifierFlags::Command, CMD),
+            (NSEventModifierFlags::Shift, SHIFT),
+            (NSEventModifierFlags::Option, OPTION),
+            (NSEventModifierFlags::Control, CONTROL),
+        ] {
+            if flags.contains(flag) {
+                modifiers |= bit;
+            }
+        }
+        let code = event.keyCode();
+        if code == KEY_ESCAPE && modifiers == 0 {
+            finish_recording(None);
+        } else if let Some(shortcut) = Shortcut::from_key(code, modifiers) {
+            finish_recording(Some(shortcut));
+        } else {
+            WINDOW.with(|w| {
+                if let Some(w) = w.borrow().as_ref() {
+                    w.c.shortcut.setTitle(&ns("Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)"));
+                }
+            });
+        }
+        // Swallow the key either way.
+        std::ptr::null_mut()
+    });
+    // SAFETY: the handler has the expected signature; the monitor is removed in `finish_recording`.
+    let monitor = unsafe { NSEvent::addLocalMonitorForEventsMatchingMask_handler(NSEventMask::KeyDown, &handler) };
+    MONITOR.with(|m| *m.borrow_mut() = monitor);
+}
+
+fn finish_recording(shortcut: Option<Shortcut>) {
+    if let Some(monitor) = MONITOR.with(|m| m.borrow_mut().take()) {
+        // SAFETY: the monitor came from addLocalMonitorForEventsMatchingMask.
+        unsafe { NSEvent::removeMonitor(&monitor) };
+    }
+    if let Some(shortcut) = shortcut {
+        let mut s = Settings::load();
+        s.shortcut = shortcut.to_config();
+        if let Err(e) = s.save() {
+            tracing::warn!("saving settings: {e:#}");
+        }
+    }
+    crate::app::resume_hotkey();
+    refresh();
+}
+
+fn choose_folder() {
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let panel = NSOpenPanel::openPanel(mtm);
+    panel.setCanChooseDirectories(true);
+    panel.setCanChooseFiles(false);
+    panel.setCanCreateDirectories(true);
+    panel.setPrompt(Some(&ns("Choose")));
+    if panel.runModal() == NSModalResponseOK
+        && let Some(path) = panel.URL().and_then(|u| u.path())
+    {
+        let mut s = Settings::load();
+        s.screenshot_folder = path.to_string();
+        if let Err(e) = s.save() {
+            tracing::warn!("saving settings: {e:#}");
+        }
+        crate::app::settings_updated();
+        refresh();
+    }
+}

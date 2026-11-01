@@ -85,6 +85,44 @@ pub fn hsl([r, g, b]: [u8; 3]) -> (u32, u32, u32) {
     ((h.round() as u32) % 360, (s * 100.0).round() as u32, (l * 100.0).round() as u32)
 }
 
+/// Relative luminance of an sRGB color (WCAG 2).
+pub fn luminance(rgb: [u8; 3]) -> f64 {
+    let lin = |v: u8| {
+        let c = f64::from(v) / 255.0;
+        if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    };
+    0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2])
+}
+
+/// The WCAG contrast ratio of two colors, from 1 to 21.
+pub fn contrast_ratio(a: [u8; 3], b: [u8; 3]) -> f64 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// The best WCAG level a ratio passes: "AAA", "AA", "AA large" (only for
+/// large text), or "Fail".
+pub fn contrast_grade(ratio: f64) -> &'static str {
+    // Compare the shown (truncated) value, so "4.49:1" never reads as AA.
+    let r = (ratio * 100.0).floor() / 100.0;
+    if r >= 7.0 {
+        "AAA"
+    } else if r >= 4.5 {
+        "AA"
+    } else if r >= 3.0 {
+        "AA large"
+    } else {
+        "Fail"
+    }
+}
+
+/// "4.52:1  AA": the ratio truncated to two decimals (WCAG says not to
+/// round up) and its grade.
+pub fn contrast_text(a: [u8; 3], b: [u8; 3]) -> String {
+    let ratio = contrast_ratio(a, b);
+    format!("{:.2}:1  {}", (ratio * 100.0).floor() / 100.0, contrast_grade(ratio))
+}
+
 /// The average color of the pixels in `r`.
 pub fn average(frame: &Frame, r: PxRect) -> Option<[u8; 3]> {
     let r = frame.clamp(r);
@@ -131,6 +169,18 @@ mod tests {
     fn cycles_formats() {
         assert_eq!(ColorFormat::Hex.next(), ColorFormat::Rgb);
         assert_eq!(ColorFormat::AppKit.next(), ColorFormat::Hex);
+    }
+
+    #[test]
+    fn contrast() {
+        assert!((contrast_ratio([0, 0, 0], [255, 255, 255]) - 21.0).abs() < 1e-9);
+        assert!((contrast_ratio([10, 20, 30], [10, 20, 30]) - 1.0).abs() < 1e-9);
+        // #767676 on white is the classic 4.54:1.
+        assert_eq!(contrast_text([0x76, 0x76, 0x76], [255, 255, 255]), "4.54:1  AA");
+        assert_eq!(contrast_text([255, 255, 255], [0, 0, 0]), "21.00:1  AAA");
+        assert_eq!(contrast_grade(3.2), "AA large");
+        assert_eq!(contrast_grade(4.499), "AA large");
+        assert_eq!(contrast_grade(2.9), "Fail");
     }
 
     #[test]

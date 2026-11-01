@@ -107,6 +107,24 @@ impl Shortcut {
         Ok(Shortcut { key_code, modifiers })
     }
 
+    /// A shortcut from a pressed key, or `None` for keys PixlSnapz does not
+    /// know or a combination without a modifier (except function keys).
+    pub fn from_key(key_code: u16, modifiers: u32) -> Option<Shortcut> {
+        let s = Shortcut { key_code, modifiers: modifiers & (CMD | SHIFT | OPTION | CONTROL) };
+        Shortcut::parse(&s.to_config()).ok().filter(|p| *p == s)
+    }
+
+    /// The settings text, such as "shift+cmd+1".
+    pub fn to_config(&self) -> String {
+        let mut parts: Vec<&str> = [(CONTROL, "ctrl"), (OPTION, "opt"), (SHIFT, "shift"), (CMD, "cmd")]
+            .iter()
+            .filter(|(bit, _)| self.modifiers & bit != 0)
+            .map(|(_, name)| *name)
+            .collect();
+        parts.push(self.key_name());
+        parts.join("+")
+    }
+
     /// The menu key equivalent: the key as a lowercase string.
     pub fn key_name(&self) -> &'static str {
         KEYS.iter().find(|(_, c)| *c == self.key_code).map_or("", |(n, _)| n)
@@ -139,6 +157,18 @@ mod tests {
         assert_eq!(s.modifiers, CONTROL | OPTION);
         assert_eq!(s.to_string(), "⌃⌥M");
         assert_eq!(Shortcut::parse("f5").unwrap().key_code, 0x60);
+    }
+
+    #[test]
+    fn config_round_trip() {
+        for text in ["shift+cmd+1", "ctrl+opt+m", "f5", "cmd+space", "ctrl+opt+shift+cmd+["] {
+            let s = Shortcut::parse(text).unwrap();
+            assert_eq!(s.to_config(), text);
+            assert_eq!(Shortcut::from_key(s.key_code, s.modifiers), Some(s));
+        }
+        // No modifier, or an unknown key.
+        assert_eq!(Shortcut::from_key(0x00, 0), None);
+        assert_eq!(Shortcut::from_key(0x7F, CMD), None);
     }
 
     #[test]

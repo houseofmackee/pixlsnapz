@@ -6,6 +6,7 @@ mod capture;
 mod hotkeys;
 mod login_item;
 mod overlay;
+mod settings_window;
 
 use std::process::ExitCode;
 
@@ -18,6 +19,7 @@ PixlSnapz: measure anything on your screen
 Usage:
   pixlsnapz              Start the menu bar app
   pixlsnapz measure      Start measuring in the running app
+  pixlsnapz settings     Open Settings in the running app
   pixlsnapz --version    Print the version
   pixlsnapz --help       Print this help
 ";
@@ -40,12 +42,13 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        Some("measure") => {
+        Some(command @ ("measure" | "settings")) => {
+            let name = if command == "measure" { app::MEASURE_NOTIFICATION } else { app::SETTINGS_NOTIFICATION };
             // SAFETY: a notification without object or user info.
             unsafe {
                 NSDistributedNotificationCenter::defaultCenter()
                     .postNotificationName_object_userInfo_deliverImmediately(
-                        &NSString::from_str(app::MEASURE_NOTIFICATION),
+                        &NSString::from_str(name),
                         None,
                         None,
                         true,

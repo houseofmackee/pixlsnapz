@@ -68,7 +68,72 @@ pub enum Units {
     #[default]
     Points,
     Pixels,
+    /// Real-world size on the display.
+    Millimeters,
+    Inches,
 }
+
+impl Units {
+    pub const ALL: [Units; 4] = [Units::Points, Units::Pixels, Units::Millimeters, Units::Inches];
+
+    pub fn next(self) -> Units {
+        let i = Units::ALL.iter().position(|u| *u == self).unwrap_or(0);
+        Units::ALL[(i + 1) % Units::ALL.len()]
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Units::Points => "Points",
+            Units::Pixels => "Pixels",
+            Units::Millimeters => "Millimeters",
+            Units::Inches => "Inches",
+        }
+    }
+
+    pub fn suffix(self) -> &'static str {
+        match self {
+            Units::Points => "pt",
+            Units::Pixels => "px",
+            Units::Millimeters => "mm",
+            Units::Inches => "in",
+        }
+    }
+}
+
+/// The layout grid drawn over the screen (or the last area).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Grid {
+    #[default]
+    Off,
+    /// Squares of `grid_size` points.
+    Square,
+    /// `grid_columns` columns with gutters and margins.
+    Columns,
+}
+
+impl Grid {
+    pub const ALL: [Grid; 3] = [Grid::Off, Grid::Square, Grid::Columns];
+
+    pub fn next(self) -> Grid {
+        match self {
+            Grid::Off => Grid::Square,
+            Grid::Square => Grid::Columns,
+            Grid::Columns => Grid::Off,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Grid::Off => "Off",
+            Grid::Square => "Square Grid",
+            Grid::Columns => "Column Grid",
+        }
+    }
+}
+
+/// Design zoom levels offered in the menu, in percent.
+pub const DESIGN_ZOOMS: &[u32] = &[25, 50, 100, 200, 300, 400];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -100,6 +165,20 @@ pub struct Settings {
     pub color_format: ColorFormat,
     /// Loupe magnification (one of `LOUPE_ZOOMS`).
     pub loupe_zoom: u32,
+    /// Zoom of the design being measured, in percent: lengths are divided by
+    /// it, so a Figma frame at 200% measures in its own units.
+    pub design_zoom: u32,
+    /// Pixels per inch of the displays, for millimeters and inches; 0 uses
+    /// the size each display reports.
+    pub screen_ppi: f64,
+    pub grid: Grid,
+    /// Square grid size, in points.
+    pub grid_size: f64,
+    pub grid_columns: u32,
+    /// Space between columns, in points.
+    pub grid_gutter: f64,
+    /// Space left and right of the columns, in points.
+    pub grid_margin: f64,
 }
 
 impl Default for Settings {
@@ -119,6 +198,13 @@ impl Default for Settings {
             axes: Axes::Both,
             color_format: ColorFormat::Hex,
             loupe_zoom: 8,
+            design_zoom: 100,
+            screen_ppi: 0.0,
+            grid: Grid::Off,
+            grid_size: 8.0,
+            grid_columns: 12,
+            grid_gutter: 20.0,
+            grid_margin: 0.0,
         }
     }
 }
@@ -292,6 +378,15 @@ mod tests {
         s.loupe_zoom = 10;
         s.step_loupe_zoom(false);
         assert_eq!(s.loupe_zoom, 8);
+    }
+
+    #[test]
+    fn units_and_grid_cycle() {
+        assert_eq!(Units::Points.next(), Units::Pixels);
+        assert_eq!(Units::Inches.next(), Units::Points);
+        assert_eq!(Grid::Off.next().next().next(), Grid::Off);
+        let s = Settings::from_toml("units = \"millimeters\"\ngrid = \"columns\"\n").unwrap();
+        assert_eq!((s.units, s.grid, s.design_zoom), (Units::Millimeters, Grid::Columns, 100));
     }
 
     #[test]

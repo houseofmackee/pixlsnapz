@@ -17,12 +17,14 @@ use objc2_foundation::{NSDistributedNotificationCenter, NSNotification, NSObject
 use crate::color::ColorFormat;
 use crate::hotkeys::{HotkeyAction, Hotkeys};
 use crate::overlay::{self, StartError};
-use crate::settings::{Axes, COLORS, Settings, TOLERANCE_STEPS, Units};
+use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, Settings, TOLERANCE_STEPS, Units};
 use crate::shortcut::{CMD, CONTROL, OPTION, SHIFT, Shortcut};
-use crate::{capture, login_item};
+use crate::{capture, login_item, settings_window};
 
 /// Posted by `pixlsnapz measure` to start measuring in the running app.
 pub const MEASURE_NOTIFICATION: &str = "io.github.houseofmackee.pixlsnapz.measure";
+/// Posted by `pixlsnapz settings` to show the Settings window.
+pub const SETTINGS_NOTIFICATION: &str = "io.github.houseofmackee.pixlsnapz.settings";
 const SCREEN_RECORDING_SETTINGS: &str = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
 
 // Menu item tags. Submenu choices add their index to a base.
@@ -38,11 +40,15 @@ const OPEN_SETTINGS: isize = 9;
 const PERMISSION: isize = 10;
 const ABOUT: isize = 11;
 const QUIT: isize = 12;
+const SETTINGS: isize = 13;
+const CLEAR_KEPT: isize = 14;
 const UNITS_BASE: isize = 100;
 const TOLERANCE_BASE: isize = 200;
 const COLOR_BASE: isize = 300;
 const FORMAT_BASE: isize = 400;
 const AXES_BASE: isize = 500;
+const ZOOM_BASE: isize = 600;
+const GRID_BASE: isize = 700;
 const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
 
 define_class!(
@@ -60,20 +66,30 @@ define_class!(
         /// Another app became active (for example with Command-Tab).
         #[unsafe(method(otherAppActivated:))]
         fn other_app_activated(&self, notification: &NSNotification) {
-            let name = notification
+            // Measurements kept on screen stay; measuring ends. PixlSnapz
+            // itself becoming active (Settings, alerts) does not count.
+            let app = notification
                 .userInfo()
+                // SAFETY: a static constant.
                 .and_then(|info| info.objectForKey(unsafe { NSWorkspaceApplicationKey }))
-                .and_then(|app| app.downcast::<NSRunningApplication>().ok())
-                .and_then(|app| app.bundleIdentifier())
-                .map(|id| id.to_string())
-                .unwrap_or_default();
+                .and_then(|app| app.downcast::<NSRunningApplication>().ok());
+            let Some(app) = app else { return };
+            if app.processIdentifier() == std::process::id() as i32 {
+                return;
+            }
+            let name = app.bundleIdentifier().map(|id| id.to_string()).unwrap_or_default();
             tracing::debug!("{name} became active");
-            overlay::end();
+            overlay::end_measuring();
+        }
+
+        #[unsafe(method(remoteSettings:))]
+        fn remote_settings(&self, _notification: &NSNotification) {
+            settings_window::show(mtm());
         }
 
         #[unsafe(method(remoteMeasure:))]
         fn remote_measure(&self, _notification: &NSNotification) {
-            if !overlay::is_active() {
+            if !overlay::is_measuring() {
                 measure();
             }
         }
@@ -144,6 +160,12 @@ pub fn run() -> anyhow::Result<()> {
             Some(&NSString::from_str(MEASURE_NOTIFICATION)),
             None,
         );
+        NSDistributedNotificationCenter::defaultCenter().addObserver_selector_name_object(
+            &target,
+            sel!(remoteSettings:),
+            Some(&NSString::from_str(SETTINGS_NOTIFICATION)),
+            None,
+        );
     }
 
     let first_launch = !Settings::path().exists();
@@ -177,11 +199,45 @@ fn register_hotkey() {
         alert(
             "The shortcut is not available",
             &format!(
-                "{shortcut} is used by another app. Choose another one in the settings file \
-                 (PixlSnapz menu > Open Settings File…); you can still start measuring from the menu bar."
+                "{shortcut} is used by another app. Choose another one in PixlSnapz Settings \
+                 (menu bar icon > Settings…); you can still start measuring from the menu bar."
             ),
             &["OK"],
         );
+    }
+}
+
+/// Unregisters the shortcut while a new one is recorded.
+pub fn suspend_hotkey() {
+    APP.with(|a| {
+        if let Some(a) = a.borrow_mut().as_mut() {
+            a.hotkeys.set(&[]);
+            a.registered = None;
+        }
+    });
+}
+
+/// Registers the shortcut from the settings again.
+pub fn resume_hotkey() {
+    reload_settings();
+}
+
+/// The Settings window changed the settings file.
+pub fn settings_updated() {
+    reload_settings();
+}
+
+pub fn show_alert(title: &str, message: &str) {
+    alert(title, message, &["OK"]);
+}
+
+pub fn open_settings_file() {
+    change_settings(|_| {});
+    let path = Settings::path();
+    let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
+    // Open in TextEdit (or the default editor for plain text).
+    if !NSWorkspace::sharedWorkspace().openURL(&url) {
+        let _ = std::process::Command::new("open").arg("-t").arg(&path).status();
     }
 }
 
@@ -210,6 +266,7 @@ fn change_settings(f: impl FnOnce(&mut Settings)) {
             a.settings = s;
         }
     });
+    settings_window::refresh();
 }
 
 pub fn on_hotkey(action: HotkeyAction) {
@@ -337,11 +394,23 @@ fn build_menu(menu: &NSMenu, target: &Target) {
         }
     }
     measure.setKeyEquivalentModifierMask(mask);
+    if overlay::has_kept() {
+        item(menu, "Clear Kept Measurements", CLEAR_KEPT, target);
+    }
     menu.addItem(&NSMenuItem::separatorItem(mtm));
 
     let units = submenu(menu, "Units");
-    check(&units, "Points", UNITS_BASE, s.units == Units::Points, target);
-    check(&units, "Pixels", UNITS_BASE + 1, s.units == Units::Pixels, target);
+    for (i, u) in Units::ALL.iter().enumerate() {
+        check(&units, u.name(), UNITS_BASE + i as isize, s.units == *u, target);
+    }
+    let zoom = submenu(menu, "Design Zoom");
+    for (i, z) in DESIGN_ZOOMS.iter().enumerate() {
+        check(&zoom, &format!("{z}%"), ZOOM_BASE + i as isize, s.design_zoom == *z, target);
+    }
+    let grid = submenu(menu, "Grid");
+    for (i, g) in Grid::ALL.iter().enumerate() {
+        check(&grid, g.name(), GRID_BASE + i as isize, s.grid == *g, target);
+    }
     let tolerance = submenu(menu, "Edge Tolerance");
     for (i, (value, name)) in TOLERANCE_STEPS.iter().enumerate() {
         check(&tolerance, name, TOLERANCE_BASE + i as isize, s.tolerance == *value, target);
@@ -366,8 +435,9 @@ fn build_menu(menu: &NSMenu, target: &Target) {
     check(menu, "Show Aspect Ratio", ASPECT, s.show_aspect_ratio, target);
     check(menu, "Show Shortcut Hints", HINTS, s.show_hints, target);
     menu.addItem(&NSMenuItem::separatorItem(mtm));
+    let settings_item = item(menu, "Settings…", SETTINGS, target);
+    settings_item.setKeyEquivalent(&NSString::from_str(","));
     check(menu, "Launch at Login", LOGIN, login_item::is_enabled(), target);
-    item(menu, "Open Settings File…", OPEN_SETTINGS, target);
     if !capture::has_permission(false) {
         item(menu, "Allow Screen Recording…", PERMISSION, target);
     }
@@ -403,15 +473,9 @@ fn menu_action(tag: isize) {
                 alert("Launch at Login", &message, &["OK"]);
             }
         }
-        OPEN_SETTINGS => {
-            change_settings(|_| {});
-            let path = Settings::path();
-            let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
-            // Open in TextEdit (or the default editor for plain text).
-            if !NSWorkspace::sharedWorkspace().openURL(&url) {
-                let _ = std::process::Command::new("open").arg("-t").arg(&path).status();
-            }
-        }
+        OPEN_SETTINGS => open_settings_file(),
+        SETTINGS => settings_window::show(mtm),
+        CLEAR_KEPT => overlay::end(),
         PERMISSION => {
             if !capture::has_permission(true) {
                 open_url(SCREEN_RECORDING_SETTINGS);
@@ -423,8 +487,14 @@ fn menu_action(tag: isize) {
             app.orderFrontStandardAboutPanel(None);
         }
         QUIT => NSApplication::sharedApplication(mtm).terminate(None),
-        t if (UNITS_BASE..UNITS_BASE + 2).contains(&t) => {
-            change_settings(|s| s.units = if t == UNITS_BASE { Units::Points } else { Units::Pixels })
+        t if (UNITS_BASE..UNITS_BASE + Units::ALL.len() as isize).contains(&t) => {
+            change_settings(|s| s.units = Units::ALL[(t - UNITS_BASE) as usize])
+        }
+        t if (ZOOM_BASE..ZOOM_BASE + DESIGN_ZOOMS.len() as isize).contains(&t) => {
+            change_settings(|s| s.design_zoom = DESIGN_ZOOMS[(t - ZOOM_BASE) as usize])
+        }
+        t if (GRID_BASE..GRID_BASE + Grid::ALL.len() as isize).contains(&t) => {
+            change_settings(|s| s.grid = Grid::ALL[(t - GRID_BASE) as usize])
         }
         t if (TOLERANCE_BASE..TOLERANCE_BASE + TOLERANCE_STEPS.len() as isize).contains(&t) => {
             change_settings(|s| s.tolerance = TOLERANCE_STEPS[(t - TOLERANCE_BASE) as usize].0)
