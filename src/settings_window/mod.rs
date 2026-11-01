@@ -101,6 +101,16 @@ define_class!(
             colors::delete_palette();
         }
 
+        #[unsafe(method(colorMenu:))]
+        fn color_menu(&self, sender: &objc2_app_kit::NSMenuItem) {
+            colors::color_menu(sender.tag());
+        }
+
+        #[unsafe(method(renamePalette:))]
+        fn rename_palette(&self, _sender: Option<&AnyObject>) {
+            colors::rename_palette();
+        }
+
         #[unsafe(method(clearColors:))]
         fn clear_colors(&self, _sender: Option<&AnyObject>) {
             colors::clear_recent_colors();

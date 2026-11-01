@@ -27,6 +27,24 @@ define_class!(
         fn can_become_main(&self) -> bool {
             true
         }
+
+        /// The editing shortcuts (⌘X, ⌘C, ⌘V, ⌘A, ⌘Z) for the set name
+        /// field, which would otherwise come from an Edit menu PixlSnapz
+        /// does not have.
+        #[unsafe(method(performKeyEquivalent:))]
+        fn perform_key_equivalent(&self, event: &NSEvent) -> bool {
+            let naming = SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.naming));
+            match super::naming::edit_action(event).filter(|_| naming) {
+                Some(action) => {
+                    let app = objc2_app_kit::NSApplication::sharedApplication(self.mtm());
+                    // SAFETY: a standard editing action, sent to the first
+                    // responder (the field's editor).
+                    unsafe { app.sendAction_to_from(action, None, Some(self)) }
+                }
+                // SAFETY: the superclass's implementation.
+                None => unsafe { objc2::msg_send![super(self), performKeyEquivalent: event] },
+            }
+        }
     }
 
     unsafe impl NSObjectProtocol for OverlayWindow {}

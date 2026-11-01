@@ -1,7 +1,9 @@
 //! Floating rulers: panels with tick marks in the chosen units that stay on
 //! screen while you work. Drag one to move it, drag its far end to change
 //! its length, and right-click it to rotate it, change units, or close it.
-//! A line follows the pointer along each ruler, with its position.
+//! A clicked ruler takes the arrow keys (⇧: ten points), R to rotate, and ⌫
+//! to close. A line follows the pointer along each ruler, with its
+//! position. Rulers are saved in `rulers.toml` and come back at launch.
 
 use std::cell::{Cell, RefCell};
 use std::ptr::NonNull;
@@ -17,8 +19,44 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSDictionary, NSNumber, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
+use serde::{Deserialize, Serialize};
+
 use crate::settings::{Settings, Units};
 use crate::units::Scale;
+
+/// A ruler as saved: its frame in Cocoa screen points (bottom-left origin).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SavedRuler {
+    pub vertical: bool,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SavedRulers {
+    #[serde(default)]
+    pub rulers: Vec<SavedRuler>,
+}
+
+impl SavedRulers {
+    pub fn path() -> std::path::PathBuf {
+        Settings::path().with_file_name("rulers.toml")
+    }
+
+    pub fn load_from(path: &std::path::Path) -> SavedRulers {
+        std::fs::read_to_string(path).ok().and_then(|t| toml::from_str(&t).ok()).unwrap_or_default()
+    }
+
+    pub fn save_to(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::write(path, toml::to_string(self)?)?;
+        Ok(())
+    }
+}
 
 /// How tall (or wide, when vertical) a ruler is, in points.
 const THICKNESS: f64 = 34.0;
@@ -166,9 +204,62 @@ define_class!(
         fn ruler_action(&self, sender: &NSMenuItem) {
             self.action(sender.tag());
         }
+
+        #[unsafe(method(acceptsFirstResponder))]
+        fn accepts_first_responder(&self) -> bool {
+            true
+        }
+
+        /// Arrow keys move the ruler (⇧: ten points), R rotates it, and ⌫
+        /// closes it.
+        #[unsafe(method(keyDown:))]
+        fn key_down(&self, event: &NSEvent) {
+            let step = if event.modifierFlags().contains(objc2_app_kit::NSEventModifierFlags::Shift) { 10.0 } else { 1.0 };
+            let (dx, dy) = match event.keyCode() {
+                123 => (-step, 0.0),
+                124 => (step, 0.0),
+                125 => (0.0, -step),
+                126 => (0.0, step),
+                51 | 117 => {
+                    self.action(CLOSE);
+                    return;
+                }
+                _ => {
+                    let key = event.charactersIgnoringModifiers().map(|c| c.to_string().to_lowercase());
+                    if key.as_deref() == Some("r") {
+                        self.action(ROTATE);
+                    }
+                    return;
+                }
+            };
+            if let Some(window) = self.window() {
+                let mut frame = window.frame();
+                frame.origin.x += dx;
+                frame.origin.y += dy;
+                window.setFrame_display(frame, true);
+            }
+        }
     }
 
     unsafe impl NSObjectProtocol for RulerView {}
+);
+
+define_class!(
+    /// A ruler's panel: borderless, yet it can take the keyboard when
+    /// clicked (without making PixlSnapz the active app).
+    #[unsafe(super(NSPanel))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "PixlSnapzRulerPanel"]
+    pub struct RulerPanel;
+
+    impl RulerPanel {
+        #[unsafe(method(canBecomeKeyWindow))]
+        fn can_become_key(&self) -> bool {
+            true
+        }
+    }
+
+    unsafe impl NSObjectProtocol for RulerPanel {}
 );
 
 const ROTATE: isize = 1;
@@ -320,6 +411,7 @@ impl RulerView {
                 window.close();
                 let closed = Retained::as_ptr(&window).cast::<AnyObject>();
                 RULERS.with(|r| r.borrow_mut().retain(|w| Retained::as_ptr(w).cast::<AnyObject>() != closed));
+                save();
             }
             t if (UNITS_BASE..UNITS_BASE + Units::ALL.len() as isize).contains(&t) => {
                 let mut s = Settings::load();
@@ -342,7 +434,9 @@ fn text_attributes(font: &NSFont, color: &NSColor) -> Retained<NSDictionary<NSSt
 }
 
 thread_local! {
-    static RULERS: RefCell<Vec<Retained<NSPanel>>> = const { RefCell::new(Vec::new()) };
+    static RULERS: RefCell<Vec<Retained<RulerPanel>>> = const { RefCell::new(Vec::new()) };
+    /// What `rulers.toml` holds, to save only changes.
+    static SAVED: RefCell<Vec<SavedRuler>> = const { RefCell::new(Vec::new()) };
     static TIMER: RefCell<Option<Retained<NSTimer>>> = const { RefCell::new(None) };
 }
 
@@ -378,8 +472,8 @@ pub fn open_from_spec(spec: &str, mtm: MainThreadMarker) {
 fn open(vertical: bool, frame: NSRect, mtm: MainThreadMarker) {
     let (origin, size) = (frame.origin, frame.size);
     // SAFETY: NSPanel's designated initializer.
-    let panel: Retained<NSPanel> = unsafe {
-        msg_send![NSPanel::alloc(mtm), initWithContentRect: NSRect::new(origin, size),
+    let panel: Retained<RulerPanel> = unsafe {
+        msg_send![RulerPanel::alloc(mtm), initWithContentRect: NSRect::new(origin, size),
             styleMask: NSWindowStyleMask::Borderless | NSWindowStyleMask::NonactivatingPanel,
             backing: NSBackingStoreType::Buffered, defer: false]
     };
@@ -414,6 +508,53 @@ pub fn close_all() {
     for panel in RULERS.with(|r| std::mem::take(&mut *r.borrow_mut())) {
         panel.close();
     }
+    save();
+}
+
+/// The rulers on screen, as saved.
+fn snapshot() -> Vec<SavedRuler> {
+    RULERS.with(|r| {
+        r.borrow()
+            .iter()
+            .map(|panel| {
+                let f = panel.frame();
+                let vertical = panel
+                    .contentView()
+                    .and_then(|v| v.downcast::<RulerView>().ok())
+                    .is_some_and(|v| v.ivars().vertical.get());
+                SavedRuler { vertical, x: f.origin.x, y: f.origin.y, width: f.size.width, height: f.size.height }
+            })
+            .collect()
+    })
+}
+
+/// Saves the rulers if they changed since the last save.
+fn save() {
+    let now = snapshot();
+    if SAVED.with(|s| *s.borrow() == now) {
+        return;
+    }
+    if let Err(e) = (SavedRulers { rulers: now.clone() }).save_to(&SavedRulers::path()) {
+        tracing::warn!("saving the rulers: {e:#}");
+    }
+    SAVED.with(|s| *s.borrow_mut() = now);
+}
+
+/// Opens the rulers saved last time (at launch).
+pub fn restore(mtm: MainThreadMarker) {
+    let saved = SavedRulers::load_from(&SavedRulers::path()).rulers;
+    SAVED.with(|s| *s.borrow_mut() = saved.clone());
+    for r in saved {
+        let frame = NSRect::new(NSPoint::new(r.x, r.y), NSSize::new(r.width, r.height));
+        open(r.vertical, frame, mtm);
+    }
+    // Keep them on the screens there are now.
+    RULERS.with(|r| {
+        for panel in r.borrow().iter() {
+            let frame = panel.constrainFrameRect_toScreen(panel.frame(), panel.screen().as_deref());
+            panel.setFrame_display(frame, false);
+        }
+    });
 }
 
 pub fn count() -> usize {
@@ -439,10 +580,15 @@ fn start_timer() {
     let last = Cell::new(NSPoint::new(f64::NAN, f64::NAN));
     let block = RcBlock::new(move |timer: NonNull<NSTimer>| {
         if count() == 0 {
+            save();
             // SAFETY: the timer calling this block.
             unsafe { timer.as_ref() }.invalidate();
             TIMER.with(|t| *t.borrow_mut() = None);
             return;
+        }
+        // Moved, resized, or turned: saved once the mouse is up.
+        if NSEvent::pressedMouseButtons() == 0 {
+            save();
         }
         let p = NSEvent::mouseLocation();
         if p != last.get() {
@@ -482,6 +628,14 @@ mod tests {
         assert_eq!(t[5].size, TickSize::Middle);
         assert_eq!(t[10].label.as_deref(), Some("20"));
         assert_eq!(number(0.25), "0.25");
+
+        let saved =
+            SavedRulers { rulers: vec![SavedRuler { vertical: true, x: 10.0, y: 20.5, width: 34.0, height: 300.0 }] };
+        let dir = std::env::temp_dir().join(format!("pixlsnapz-rulers-{}", std::process::id()));
+        let path = dir.join("rulers.toml");
+        saved.save_to(&path).unwrap();
+        assert_eq!(SavedRulers::load_from(&path), saved);
+        std::fs::remove_dir_all(&dir).ok();
         assert_eq!(number(12.0), "12");
     }
 }

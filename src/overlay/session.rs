@@ -167,9 +167,8 @@ pub(super) struct Session {
     pub(super) windows: Vec<WindowFrame>,
     /// The saved set last loaded with ⇧R, to load the next one.
     pub(super) current_set: Option<String>,
-    /// ⇧S: the name being typed for a new set, and whether the next key
-    /// replaces it (the suggestion is selected, as in a text field).
-    pub(super) naming: Option<(String, bool)>,
+    /// ⇧S: a set's name is being typed (in a field on the overlay).
+    pub(super) naming: bool,
     /// Started with the color shortcut: only the loupe shows, and a click
     /// (or Return or P) copies the color under the pointer and ends.
     pub(super) picking: bool,
@@ -213,7 +212,7 @@ impl Session {
             control: false,
             windows: Vec::new(),
             current_set: None,
-            naming: None,
+            naming: false,
             picking: false,
             peek: false,
             control_frame: None,

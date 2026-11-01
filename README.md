@@ -50,7 +50,7 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Loupe**: a pixel grid magnifier next to the pointer, with the color and coordinates of the pixel under it; zoom from 4× to 32× with - and +
 - **Colors**: P copies the color under the pointer and ⌥P the average color of the last area, as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code (⇧P switches); the last 20 are under Recent Colors in the menu bar icon's menu
 - **Color picker shortcut**: ⇧⌘2 (or Pick Color in the menu) shows just the loupe; a click copies the color under the pointer, without measuring
-- **Colors window and palettes**: Colors… in the menu lists the recent colors with their hex, RGB, and HSL codes; click one to copy it, and the last two clicked show their contrast. Save the recent colors as a named palette, and export any list as CSS custom properties, JSON, or Adobe swatches (ASE)
+- **Colors window and palettes**: Colors… in the menu lists the recent colors with their hex, RGB, and HSL codes; click one to copy it, and the last two clicked show their contrast. Save the recent colors as a named palette, right-click a color to add it to a palette (or to remove or move it within one), rename palettes, and export any list as CSS custom properties, JSON, or Adobe swatches (ASE)
 - **Hold to measure**: choose a pair of modifier keys in Settings (⌃⌥, ⌥⌘, or ⌃⌘); holding them on their own for a moment shows distances right away, and letting go stops
 - **Color vision**: ⇧Z shows the loupe as people with protanopia, deuteranopia, tritanopia, or achromatopsia see it
 - **Screenshots**: ⌘S saves the last area as a PNG on the Desktop (⇧⌘C copies it), with the measurements drawn in (M turns that off); hold ⌥ for padding around it. ⌘E opens it in [CleanShotZ](https://github.com/houseofmackee/cleanshotz) to annotate
@@ -58,8 +58,8 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Design overlay**: lay a design image (such as a mockup exported at @2x) over the real app at 25% to 100% opacity, or as a difference that turns everything matching black; one image pixel is one screen pixel
 - **Freeze screen**: measure a still copy of the screen, so menus and animations stay put
 - **Live mode**: ⇧F finds edges in the screen as it changes (animations, video, scrolling) instead of the snapshot taken when measuring started
-- **Floating rulers**: Rulers in the menu opens horizontal or vertical rulers with tick marks in the chosen units that stay on screen while you work; drag one to move it, drag its far end to change its length, and right-click it to rotate it, change units, or close it. A red line follows the pointer with its position
-- **Shortcuts actions**: Measure (optionally with a saved set), Pick Color, New Ruler, and Show Colors in the Shortcuts app, for automations and keyboard launchers
+- **Floating rulers**: Rulers in the menu opens horizontal or vertical rulers with tick marks in the chosen units that stay on screen while you work; drag one to move it, drag its far end to change its length, and right-click it to rotate it, change units, or close it. A clicked ruler also takes the arrow keys (⇧: ten points), R to rotate, and ⌫ to close. A red line follows the pointer with its position, and rulers come back where they were after a restart
+- **Shortcuts actions**: Measure (optionally with a saved set), Pick Color, New Ruler, and Show Colors in the Shortcuts app, for automations and keyboard launchers, in every language PixlSnapz speaks
 - **Contrast checker**: press K on one color and K again on another to copy the WCAG contrast ratio and grade, such as `4.54:1  AA`; a live readout with both swatches follows the pointer in between
 - **Units**: points, pixels, millimeters, or inches (real sizes from what each display reports, or a PPI you set), optional unit labels, and the aspect ratio of areas (`16:9`)
 - **Design zoom**: measure a design shown at 200% (or 25% to 400%) in its own units; D and ⇧D change it while measuring
@@ -128,7 +128,7 @@ The menu bar icon's menu also has Pick Color, Measurement Sets, Rulers, Colors�
 | ⌥ (hold) over a kept box | Its spacing to the nearest box, guide, or screen edge on every side |
 | Drag a handle | Resize a kept box, line, or circle; drag its outline (or a guide) to move it |
 | ⌃ (hold) over a window | The window's frame and size (or the button or field, with element snapping on); ⌃-click keeps it as a box |
-| ⇧S | Save what is on screen as a named set (type the name, Return saves) |
+| ⇧S | Save what is on screen as a named set (type or paste the name, Return saves) |
 | ⇧R | Load the next saved set |
 | Return | Copy the last size and finish |
 | P | Copy the color under the pointer |
@@ -219,7 +219,7 @@ hold_keys = "off"            # or "control_option", "option_command", "control_c
 element_snapping = false     # ⌃ also snaps to buttons and fields (needs Accessibility permission)
 ```
 
-The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R, recent colors in `colors.toml`, saved measurement sets in `sets.toml`, and palettes in `palettes.toml`.
+The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R, recent colors in `colors.toml`, saved measurement sets in `sets.toml`, palettes in `palettes.toml`, and open rulers in `rulers.toml`.
 
 ## Build and run
 
@@ -254,7 +254,7 @@ The edge detection (`src/measure.rs`), units (`src/units.rs`), and geometry (`sr
 - `src/rulers.rs` is the floating rulers; `src/items.rs`, `src/color.rs`, and `src/integrations.rs` hold the saved sessions and sets, colors and palettes, and links, as plain, tested code.
 - `macos/intents/Intents.swift` is the Shortcuts actions (App Intents), which call the app's link handler; `build.rs` builds them into the app.
 - `src/updates.rs` loads Sparkle at runtime.
-- `src/i18n.rs` translates text: `t!("…")` for literals (with named `{placeholders}`), `n!("…")` for names translated where shown. The menu, Settings, and alert helpers translate the titles passed to them. `scripts/strings.py` collects all of it into `macos/en.lproj/Localizable.strings`, the template; translations are `macos/<language>.lproj/Localizable.strings` (plus `InfoPlist.strings` for the Screen Recording prompt). To add a language, copy the template there, translate the values, add the language to `CFBundleLocalizations` in `macos/Info.plist`, and run the checks: the Settings layout test also checks every translation for cut-off text.
+- `src/i18n.rs` translates text: `t!("…")` for literals (with named `{placeholders}`), `n!("…")` for names translated where shown. The menu, Settings, and alert helpers translate the titles passed to them. `scripts/strings.py` collects all of it, plus the Shortcuts actions' titles and descriptions from `macos/intents/Intents.swift`, into `macos/en.lproj/Localizable.strings`, the template; translations are `macos/<language>.lproj/Localizable.strings` (plus `InfoPlist.strings` for the Screen Recording prompt). To add a language, copy the template there, translate the values, add the language to `CFBundleLocalizations` in `macos/Info.plist`, and run the checks: the Settings layout test also checks every translation for cut-off text.
 
 GitHub Actions runs `cargo fmt --check`, `cargo clippy -D warnings` (debug and release), `cargo test` (including both UI tests), `scripts/strings.py --check`, a bundle build, and `cargo deny check` on every push to main and every pull request.
 

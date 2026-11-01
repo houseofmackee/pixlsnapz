@@ -1,7 +1,8 @@
 //! The Colors window: the recent colors or a saved palette, each with its
 //! codes; a click copies one and the last two clicked show their contrast.
 //! Recent colors can be saved as a palette, and palettes exported as CSS,
-//! JSON, or Adobe swatches.
+//! JSON, or Adobe swatches. Right-click a color to add it to a palette, or
+//! to remove or move it within one.
 
 use super::*;
 
@@ -26,6 +27,7 @@ pub(super) struct ColorsWindow {
     save: Retained<NSButton>,
     export: Retained<NSButton>,
     delete: Retained<NSButton>,
+    rename: Retained<NSButton>,
     clear: Retained<NSButton>,
     /// The colors in the list, top to bottom.
     shown: Vec<[u8; 3]>,
@@ -100,13 +102,10 @@ fn build_colors(t: &Target, mtm: MainThreadMarker) -> ColorsWindow {
     let save = button("Save as Palette…", sel!(savePalette:), t, mtm);
     let export = button("Export…", sel!(exportPalette:), t, mtm);
     let delete = button("Delete Palette", sel!(deletePalette:), t, mtm);
+    let rename = button("Rename…", sel!(renamePalette:), t, mtm);
     let clear = button("Clear Recent Colors", sel!(clearColors:), t, mtm);
-    let mut x = 12.0;
-    for b in [&save, &export, &delete, &clear] {
-        let w = b.fittingSize().width.max(90.0);
-        b.setFrame(rect(x, 16.0, w, 32.0));
+    for b in [&save, &export, &delete, &rename, &clear] {
         content.addSubview(b);
-        x += w + 4.0;
     }
     ColorsWindow {
         window,
@@ -117,6 +116,7 @@ fn build_colors(t: &Target, mtm: MainThreadMarker) -> ColorsWindow {
         save,
         export,
         delete,
+        rename,
         clear,
         shown: Vec::new(),
         picked: Vec::new(),
@@ -160,7 +160,15 @@ pub fn refresh_colors() {
         };
         c.shown.truncate(MAX_ROWS);
         c.delete.setHidden(palette.is_none());
+        c.rename.setHidden(palette.is_none());
         c.clear.setHidden(palette.is_some());
+        // The buttons shown, side by side.
+        let mut x = 12.0;
+        for b in [&c.save, &c.export, &c.delete, &c.rename, &c.clear].into_iter().filter(|b| !b.isHidden()) {
+            let w = b.fittingSize().width.max(90.0);
+            b.setFrame(rect(x, 16.0, w, 32.0));
+            x += w + 4.0;
+        }
         c.save.setEnabled(palette.is_none() && !c.shown.is_empty());
         c.export.setEnabled(!c.shown.is_empty());
         c.picked.retain(|p| c.shown.contains(p));
@@ -187,6 +195,9 @@ pub fn refresh_colors() {
             row.setTag(n as isize);
             row.setFrame(rect(8.0, height - (n as f64 + 1.0) * ROW_H, clip.width - 16.0, ROW_H));
             row.setAccessibilityLabel(Some(&ns(&t!("Copy {color}", color = ColorFormat::Hex.format(*rgb)))));
+            let menu = row_menu(n, c.shown.len(), palette.is_some(), &palettes, &target, mtm);
+            // SAFETY: the row keeps its menu; its items target the shared target.
+            unsafe { row.setMenu(Some(&menu)) };
             list.addSubview(&row);
         }
         if c.shown.is_empty() {
@@ -202,6 +213,132 @@ pub fn refresh_colors() {
         list.scrollPoint(NSPoint::new(0.0, height));
         show_contrast(c);
     });
+}
+
+// What a color row's menu items do: the row times ROW, plus one of these.
+const ROW: isize = 1000;
+const REMOVE: isize = 1;
+const MOVE_UP: isize = 2;
+const MOVE_DOWN: isize = 3;
+const NEW_PALETTE: isize = 4;
+/// Plus a palette's index: add the color to that palette.
+const ADD_TO: isize = 100;
+
+/// The right-click menu of color row `n` (of `count`).
+fn row_menu(
+    n: usize,
+    count: usize,
+    in_palette: bool,
+    palettes: &Palettes,
+    target: &Target,
+    mtm: MainThreadMarker,
+) -> Retained<objc2_app_kit::NSMenu> {
+    use objc2_app_kit::{NSMenu, NSMenuItem};
+    let item = |menu: &NSMenu, title: &str, code: isize, enabled: bool| {
+        // SAFETY: the action exists on the target, which outlives the menu.
+        let it = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &ns(title),
+                Some(sel!(colorMenu:)),
+                &ns(""),
+            )
+        };
+        it.setTag(n as isize * ROW + code);
+        // SAFETY: as above.
+        unsafe { it.setTarget(Some(target)) };
+        it.setEnabled(enabled);
+        menu.addItem(&it);
+    };
+    let menu = NSMenu::new(mtm);
+    menu.setAutoenablesItems(false);
+    let add = NSMenu::new(mtm);
+    add.setAutoenablesItems(false);
+    for (i, p) in palettes.palettes.iter().enumerate().take((ROW - ADD_TO) as usize) {
+        item(&add, &p.name, ADD_TO + i as isize, true);
+    }
+    if !palettes.palettes.is_empty() {
+        add.addItem(&NSMenuItem::separatorItem(mtm));
+    }
+    item(&add, &t!("New Palette…"), NEW_PALETTE, true);
+    let parent = NSMenuItem::new(mtm);
+    parent.setTitle(&ns(&t!("Add to Palette")));
+    parent.setSubmenu(Some(&add));
+    menu.addItem(&parent);
+    if in_palette {
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        item(&menu, &t!("Remove from Palette"), REMOVE, true);
+        item(&menu, &t!("Move Up"), MOVE_UP, n > 0);
+        item(&menu, &t!("Move Down"), MOVE_DOWN, n + 1 < count);
+    }
+    menu
+}
+
+/// A color row's menu item was chosen.
+pub(super) fn color_menu(tag: isize) {
+    let (row, code) = (tag / ROW, tag % ROW);
+    let Some((rgb, current)) = COLORS.with(|c| {
+        let c = c.borrow();
+        let c = c.as_ref()?;
+        Some((*c.shown.get(usize::try_from(row).ok()?)?, selected_palette(c)))
+    }) else {
+        return;
+    };
+    let path = Palettes::path();
+    let mut palettes = Palettes::load_from(&path);
+    match code {
+        NEW_PALETTE => {
+            let suggestion = palettes.unused_name(&t!("Palette"));
+            let Some(name) = ask_name(&t!("Add the color to a new palette named"), &suggestion) else { return };
+            palettes.add_color(&name, rgb);
+        }
+        c if c >= ADD_TO => {
+            let Some(name) = palettes.palettes.get((c - ADD_TO) as usize).map(|p| p.name.clone()) else { return };
+            palettes.add_color(&name, rgb);
+        }
+        REMOVE | MOVE_UP | MOVE_DOWN => {
+            let Some(p) = current.as_deref().and_then(|name| palettes.get_mut(name)) else { return };
+            let row = row as usize;
+            match code {
+                REMOVE if row < p.colors.len() => {
+                    p.colors.remove(row);
+                }
+                MOVE_UP => p.move_color(row, -1),
+                MOVE_DOWN => p.move_color(row, 1),
+                _ => {}
+            }
+        }
+        _ => return,
+    }
+    if let Err(e) = palettes.save_to(&path) {
+        crate::app::show_alert(&t!("Could not save the palette"), &format!("{e:#}"));
+    }
+    refresh_colors();
+}
+
+/// Renames the palette shown.
+pub(super) fn rename_palette() {
+    let Some(old) = COLORS.with(|c| c.borrow().as_ref().and_then(selected_palette)) else { return };
+    let Some(new) = ask_name(&t!("Rename the palette to"), &old) else { return };
+    let new = new.trim().to_string();
+    let path = Palettes::path();
+    let mut palettes = Palettes::load_from(&path);
+    if !palettes.rename(&old, &new) {
+        crate::app::show_alert(&t!("Could not rename the palette"), &t!("Another palette is called {new}.", new));
+        return;
+    }
+    if let Err(e) = palettes.save_to(&path) {
+        crate::app::show_alert(&t!("Could not save the palette"), &format!("{e:#}"));
+        return;
+    }
+    // Show it under its new name.
+    COLORS.with(|c| {
+        if let Some(c) = c.borrow().as_ref() {
+            c.source.addItemWithTitle(&ns(&new));
+            c.source.selectItemWithTitle(&ns(&new));
+        }
+    });
+    refresh_colors();
 }
 
 fn show_contrast(c: &ColorsWindow) {

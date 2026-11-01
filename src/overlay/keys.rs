@@ -21,48 +21,6 @@ pub(super) const KEY_RIGHT: u16 = 124;
 pub(super) const KEY_DOWN: u16 = 125;
 pub(super) const KEY_UP: u16 = 126;
 
-/// A key while naming a set (⇧S): typing, Return saves, Esc cancels.
-fn name_key(event: &NSEvent, code: u16, command: bool) {
-    match code {
-        KEY_ESCAPE => update(|s| s.naming = None),
-        KEY_RETURN | KEY_ENTER => commit_set(),
-        KEY_DELETE | KEY_FORWARD_DELETE => update(|s| {
-            if let Some((name, fresh)) = s.naming.as_mut() {
-                if *fresh {
-                    name.clear();
-                } else {
-                    name.pop();
-                }
-                *fresh = false;
-            }
-        }),
-        _ if command => {}
-        _ => {
-            let typed: String = event
-                .characters()
-                .map(|c| c.to_string())
-                .unwrap_or_default()
-                .chars()
-                .filter(|c| !c.is_control())
-                .collect();
-            if typed.is_empty() {
-                return;
-            }
-            update(|s| {
-                if let Some((name, fresh)) = s.naming.as_mut() {
-                    if *fresh {
-                        name.clear();
-                    }
-                    if name.chars().count() < 60 {
-                        name.push_str(&typed);
-                    }
-                    *fresh = false;
-                }
-            });
-        }
-    }
-}
-
 pub(super) fn key_down(event: &NSEvent) {
     let code = event.keyCode();
     let flags = event.modifierFlags();
@@ -74,10 +32,6 @@ pub(super) fn key_down(event: &NSEvent) {
     let picking = SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.picking));
     if picking && !command && (matches!(code, KEY_RETURN | KEY_ENTER) || (chars == "p" && !shift && !option)) {
         finish_picking();
-        return;
-    }
-    if SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.naming.is_some())) {
-        name_key(event, code, command);
         return;
     }
 

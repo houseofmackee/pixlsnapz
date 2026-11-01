@@ -10,6 +10,7 @@ mod draw;
 mod keys;
 mod live;
 mod loupe;
+mod naming;
 mod session;
 mod view;
 
@@ -401,6 +402,7 @@ pub(super) fn finish_picking() {
 
 /// Ends the session.
 pub fn end() {
+    naming::cancel();
     let Some(session) = SESSION.with(|s| s.borrow_mut().take()) else { return };
     tracing::debug!("measuring ended");
     if !session.items.is_empty()

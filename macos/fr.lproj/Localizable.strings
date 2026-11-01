@@ -13,6 +13,12 @@
 /* src/settings_window/mod.rs */
 "Add App…" = "Ajouter une app…";
 
+/* src/settings_window/colors.rs */
+"Add the color to a new palette named" = "Ajouter la couleur à une nouvelle palette nommée";
+
+/* src/settings_window/colors.rs */
+"Add to Palette" = "Ajouter à la palette";
+
 /* src/settings_window/recorder.rs */
 "Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)" = "Ajoutez ⌘, ⌥, ⌃ ou ⇧ (Échap pour annuler)";
 
@@ -24,6 +30,9 @@
 
 /* src/units.rs */
 "angle" = "angle";
+
+/* src/settings_window/colors.rs */
+"Another palette is called {new}." = "Une autre palette s’appelle déjà {new}.";
 
 /* src/overlay/keys.rs */
 "Area tool" = "Outil zone";
@@ -155,6 +164,9 @@
 "Could not export the colors" = "Impossible d’exporter les couleurs";
 
 /* src/settings_window/colors.rs */
+"Could not rename the palette" = "Impossible de renommer la palette";
+
+/* src/settings_window/colors.rs */
 "Could not save the palette" = "Impossible d’enregistrer la palette";
 
 /* src/overlay/actions.rs */
@@ -213,6 +225,9 @@
 
 /* src/overlay/keys.rs */
 "difference" = "différence";
+
+/* macos/intents/Intents.swift */
+"Direction" = "Direction";
 
 /* src/overlay/draw.rs */
 "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Glisser une poignée : modifier  ·  ⌥ sur une zone : espacements  ·  ⌃-clic : fenêtre  ·  V H : repères  ·  ⌥ flèches : bord suivant  ·  X : directions  ·  Défilement ou [ ] : tolérance  ·  N bords adoucis";
@@ -295,6 +310,9 @@
 /* src/settings_window/mod.rs */
 "Hold ⌃ over a window to measure the button, field, or image under the pointer. Needs Accessibility permission (System Settings > Privacy & Security)." = "Maintenez ⌃ au-dessus d’une fenêtre pour mesurer le bouton, le champ ou l’image sous le pointeur. Requiert l’autorisation d’accessibilité (Réglages Système > Confidentialité et sécurité).";
 
+/* macos/intents/Intents.swift */
+"Horizontal" = "Horizontale";
+
 /* src/settings.rs */
 "Horizontal only" = "Horizontale seulement";
 
@@ -346,7 +364,7 @@
 /* src/settings_window/mod.rs */
 "Margin (pt):" = "Marge (pt) :";
 
-/* src/app/menu.rs */
+/* macos/intents/Intents.swift, src/app/menu.rs */
 "Measure" = "Mesurer";
 
 /* src/app/menu.rs */
@@ -367,6 +385,9 @@
 /* src/overlay/keys.rs */
 "Measure: {name}" = "Mesurer : {name}";
 
+/* macos/intents/Intents.swift */
+"Measurement Set" = "Ensemble de mesures";
+
 /* src/app/menu.rs */
 "Measurement Sets" = "Ensembles de mesures";
 
@@ -385,11 +406,23 @@
 /* src/units.rs */
 "millimeters" = "millimètres";
 
+/* src/settings_window/colors.rs */
+"Move Down" = "Descendre";
+
 /* src/overlay/mod.rs */
 "Move the pointer to measure the distances to the nearest edges; drag to measure an area. Command-C copies the measurement, Escape finishes." = "Déplacez le pointeur pour mesurer les distances jusqu’aux bords les plus proches ; faites glisser pour mesurer une zone. Commande-C copie la mesure, Échap termine.";
 
+/* src/settings_window/colors.rs */
+"Move Up" = "Monter";
+
 /* src/app/menu.rs */
 "New Horizontal Ruler" = "Nouvelle règle horizontale";
+
+/* src/settings_window/colors.rs */
+"New Palette…" = "Nouvelle palette…";
+
+/* macos/intents/Intents.swift */
+"New Ruler" = "Nouvelle règle";
 
 /* src/app/menu.rs */
 "New Vertical Ruler" = "Nouvelle règle verticale";
@@ -439,13 +472,19 @@
 /* src/app/mod.rs */
 "Open System Settings" = "Ouvrir Réglages Système";
 
+/* macos/intents/Intents.swift */
+"Opens a floating ruler that stays on screen." = "Ouvre une règle flottante qui reste à l’écran.";
+
+/* macos/intents/Intents.swift */
+"Opens the Colors window with recent colors and palettes." = "Ouvre la fenêtre Couleurs avec les couleurs récentes et les palettes.";
+
 /* src/settings.rs */
 "Orange" = "Orange";
 
 /* src/settings_window/colors.rs */
 "Palette" = "Palette";
 
-/* src/app/menu.rs */
+/* macos/intents/Intents.swift, src/app/menu.rs */
 "Pick Color" = "Prélever une couleur";
 
 /* src/settings_window/mod.rs */
@@ -502,8 +541,17 @@
 /* src/app/menu.rs, src/settings_window/colors.rs */
 "Recent Colors" = "Couleurs récentes";
 
+/* src/settings_window/colors.rs */
+"Remove from Palette" = "Retirer de la palette";
+
 /* src/app/menu.rs */
 "Remove Image" = "Retirer l’image";
+
+/* src/settings_window/colors.rs */
+"Rename the palette to" = "Renommer la palette en";
+
+/* src/settings_window/colors.rs */
+"Rename…" = "Renommer…";
 
 /* src/overlay/keys.rs */
 "Restored {n} items" = "{n} éléments restaurés";
@@ -529,7 +577,7 @@
 /* src/settings_window/colors.rs */
 "Save the recent colors as a palette named" = "Enregistrer les couleurs récentes comme palette nommée";
 
-/* src/overlay/actions.rs, src/overlay/draw.rs */
+/* src/overlay/actions.rs, src/overlay/draw.rs, src/overlay/naming.rs */
 "Save these measurements and guides as" = "Enregistrer ces mesures et repères sous";
 
 /* src/settings_window/mod.rs */
@@ -568,6 +616,9 @@
 /* src/app/menu.rs */
 "Show Aspect Ratio" = "Afficher le rapport hauteur/largeur";
 
+/* macos/intents/Intents.swift */
+"Show Colors" = "Afficher les couleurs";
+
 /* src/app/menu.rs */
 "Show Loupe" = "Afficher la loupe";
 
@@ -591,6 +642,9 @@
 
 /* src/app/menu.rs */
 "Show While Measuring" = "Afficher pendant la mesure";
+
+/* macos/intents/Intents.swift */
+"Shows the loupe; a click copies the color under the pointer." = "Affiche la loupe ; un clic copie la couleur sous le pointeur.";
 
 /* src/app/menu.rs */
 "Size Format" = "Format des tailles";
@@ -621,6 +675,12 @@
 
 /* src/settings_window/mod.rs */
 "Square size (pt):" = "Taille des carrés (pt) :";
+
+/* macos/intents/Intents.swift */
+"Starts measuring on screen, optionally with a saved measurement set." = "Commence à mesurer à l’écran, éventuellement avec un ensemble de mesures enregistré.";
+
+/* macos/intents/Intents.swift */
+"The name of a set saved with ⇧S while measuring." = "Le nom d’un ensemble enregistré avec ⇧S pendant la mesure.";
 
 /* src/app/mod.rs */
 "The shortcut is not available" = "Le raccourci n’est pas disponible";
@@ -657,6 +717,9 @@
 
 /* src/app/menu.rs */
 "Update to PixlSnapz {version}…" = "Mettre à jour vers PixlSnapz {version}…";
+
+/* macos/intents/Intents.swift */
+"Vertical" = "Verticale";
 
 /* src/settings.rs */
 "Vertical only" = "Verticale seulement";

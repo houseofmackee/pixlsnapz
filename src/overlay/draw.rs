@@ -559,20 +559,13 @@ fn draw_matches(s: &Session, o: &Overlay, index: usize, target: PxRect, skip: Op
     }
 }
 
-/// ⇧S: the name being typed for a set, in the middle of the screen.
-fn draw_naming(o: &Overlay, name: &str, fresh: bool, rgb: [f64; 3]) {
+/// ⇧S: the title and keys around the name field (a real text field, in
+/// the middle of the screen).
+fn draw_naming(o: &Overlay) {
     let center = NSPoint::new(o.size.width / 2.0, o.size.height / 2.0);
-    pill_centered(
-        &t!("Save these measurements and guides as"),
-        NSPoint::new(center.x, center.y - 30.0),
-        o.size,
-        13.0,
-        &dark(),
-    );
-    // The suggestion shows selected (accent), typed text with a caret.
-    let (text, fill) = if fresh { (name.to_string(), color(rgb, 1.0)) } else { (format!("{name}|"), dark()) };
-    pill_centered(&text, center, o.size, 17.0, &fill);
-    pill_centered(&t!("Return: save  ·  Esc: cancel"), NSPoint::new(center.x, center.y + 30.0), o.size, 11.0, &dark());
+    let title = t!("Save these measurements and guides as");
+    pill_centered(&title, NSPoint::new(center.x, center.y - 34.0), o.size, 13.0, &dark());
+    pill_centered(&t!("Return: save  ·  Esc: cancel"), NSPoint::new(center.x, center.y + 34.0), o.size, 11.0, &dark());
 }
 
 pub(super) fn draw(index: usize) {
@@ -653,7 +646,7 @@ pub(super) fn draw(index: usize) {
                         draw_matches(s, o, index, r, None, rgb);
                     }
                 }
-            } else if let Some(p) = s.hover {
+            } else if let Some(p) = s.hover.filter(|_| !s.naming) {
                 let (x, y) = o.px(p);
                 if s.shift {
                     draw_alignment(o, x, y, rgb);
@@ -697,10 +690,8 @@ pub(super) fn draw(index: usize) {
             }
         }
 
-        if index == s.active
-            && let Some((name, fresh)) = &s.naming
-        {
-            draw_naming(o, name, *fresh, rgb);
+        if index == s.active && s.naming {
+            draw_naming(o);
         } else if index == s.active
             && let Some((text, at)) = &s.toast
             && at.elapsed() < TOAST_TIME

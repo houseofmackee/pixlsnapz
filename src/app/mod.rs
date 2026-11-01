@@ -223,6 +223,7 @@ pub fn run() -> anyhow::Result<()> {
     });
     register_hotkey();
     hold::start();
+    crate::rulers::restore(mtm);
     crate::updates::start(mtm);
     // For screenshots and tests: open Settings at a tab right away.
     if let Ok(tab) = std::env::var("PIXLSNAPZ_SHOW_SETTINGS") {

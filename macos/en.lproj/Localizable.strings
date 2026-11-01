@@ -13,6 +13,12 @@
 /* src/settings_window/mod.rs */
 "Add App…" = "Add App…";
 
+/* src/settings_window/colors.rs */
+"Add the color to a new palette named" = "Add the color to a new palette named";
+
+/* src/settings_window/colors.rs */
+"Add to Palette" = "Add to Palette";
+
 /* src/settings_window/recorder.rs */
 "Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)" = "Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)";
 
@@ -24,6 +30,9 @@
 
 /* src/units.rs */
 "angle" = "angle";
+
+/* src/settings_window/colors.rs */
+"Another palette is called {new}." = "Another palette is called {new}.";
 
 /* src/overlay/keys.rs */
 "Area tool" = "Area tool";
@@ -155,6 +164,9 @@
 "Could not export the colors" = "Could not export the colors";
 
 /* src/settings_window/colors.rs */
+"Could not rename the palette" = "Could not rename the palette";
+
+/* src/settings_window/colors.rs */
 "Could not save the palette" = "Could not save the palette";
 
 /* src/overlay/actions.rs */
@@ -213,6 +225,9 @@
 
 /* src/overlay/keys.rs */
 "difference" = "difference";
+
+/* macos/intents/Intents.swift */
+"Direction" = "Direction";
 
 /* src/overlay/draw.rs */
 "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges";
@@ -295,6 +310,9 @@
 /* src/settings_window/mod.rs */
 "Hold ⌃ over a window to measure the button, field, or image under the pointer. Needs Accessibility permission (System Settings > Privacy & Security)." = "Hold ⌃ over a window to measure the button, field, or image under the pointer. Needs Accessibility permission (System Settings > Privacy & Security).";
 
+/* macos/intents/Intents.swift */
+"Horizontal" = "Horizontal";
+
 /* src/settings.rs */
 "Horizontal only" = "Horizontal only";
 
@@ -346,7 +364,7 @@
 /* src/settings_window/mod.rs */
 "Margin (pt):" = "Margin (pt):";
 
-/* src/app/menu.rs */
+/* macos/intents/Intents.swift, src/app/menu.rs */
 "Measure" = "Measure";
 
 /* src/app/menu.rs */
@@ -367,6 +385,9 @@
 /* src/overlay/keys.rs */
 "Measure: {name}" = "Measure: {name}";
 
+/* macos/intents/Intents.swift */
+"Measurement Set" = "Measurement Set";
+
 /* src/app/menu.rs */
 "Measurement Sets" = "Measurement Sets";
 
@@ -385,11 +406,23 @@
 /* src/units.rs */
 "millimeters" = "millimeters";
 
+/* src/settings_window/colors.rs */
+"Move Down" = "Move Down";
+
 /* src/overlay/mod.rs */
 "Move the pointer to measure the distances to the nearest edges; drag to measure an area. Command-C copies the measurement, Escape finishes." = "Move the pointer to measure the distances to the nearest edges; drag to measure an area. Command-C copies the measurement, Escape finishes.";
 
+/* src/settings_window/colors.rs */
+"Move Up" = "Move Up";
+
 /* src/app/menu.rs */
 "New Horizontal Ruler" = "New Horizontal Ruler";
+
+/* src/settings_window/colors.rs */
+"New Palette…" = "New Palette…";
+
+/* macos/intents/Intents.swift */
+"New Ruler" = "New Ruler";
 
 /* src/app/menu.rs */
 "New Vertical Ruler" = "New Vertical Ruler";
@@ -439,13 +472,19 @@
 /* src/app/mod.rs */
 "Open System Settings" = "Open System Settings";
 
+/* macos/intents/Intents.swift */
+"Opens a floating ruler that stays on screen." = "Opens a floating ruler that stays on screen.";
+
+/* macos/intents/Intents.swift */
+"Opens the Colors window with recent colors and palettes." = "Opens the Colors window with recent colors and palettes.";
+
 /* src/settings.rs */
 "Orange" = "Orange";
 
 /* src/settings_window/colors.rs */
 "Palette" = "Palette";
 
-/* src/app/menu.rs */
+/* macos/intents/Intents.swift, src/app/menu.rs */
 "Pick Color" = "Pick Color";
 
 /* src/settings_window/mod.rs */
@@ -502,8 +541,17 @@
 /* src/app/menu.rs, src/settings_window/colors.rs */
 "Recent Colors" = "Recent Colors";
 
+/* src/settings_window/colors.rs */
+"Remove from Palette" = "Remove from Palette";
+
 /* src/app/menu.rs */
 "Remove Image" = "Remove Image";
+
+/* src/settings_window/colors.rs */
+"Rename the palette to" = "Rename the palette to";
+
+/* src/settings_window/colors.rs */
+"Rename…" = "Rename…";
 
 /* src/overlay/keys.rs */
 "Restored {n} items" = "Restored {n} items";
@@ -529,7 +577,7 @@
 /* src/settings_window/colors.rs */
 "Save the recent colors as a palette named" = "Save the recent colors as a palette named";
 
-/* src/overlay/actions.rs, src/overlay/draw.rs */
+/* src/overlay/actions.rs, src/overlay/draw.rs, src/overlay/naming.rs */
 "Save these measurements and guides as" = "Save these measurements and guides as";
 
 /* src/settings_window/mod.rs */
@@ -568,6 +616,9 @@
 /* src/app/menu.rs */
 "Show Aspect Ratio" = "Show Aspect Ratio";
 
+/* macos/intents/Intents.swift */
+"Show Colors" = "Show Colors";
+
 /* src/app/menu.rs */
 "Show Loupe" = "Show Loupe";
 
@@ -591,6 +642,9 @@
 
 /* src/app/menu.rs */
 "Show While Measuring" = "Show While Measuring";
+
+/* macos/intents/Intents.swift */
+"Shows the loupe; a click copies the color under the pointer." = "Shows the loupe; a click copies the color under the pointer.";
 
 /* src/app/menu.rs */
 "Size Format" = "Size Format";
@@ -621,6 +675,12 @@
 
 /* src/settings_window/mod.rs */
 "Square size (pt):" = "Square size (pt):";
+
+/* macos/intents/Intents.swift */
+"Starts measuring on screen, optionally with a saved measurement set." = "Starts measuring on screen, optionally with a saved measurement set.";
+
+/* macos/intents/Intents.swift */
+"The name of a set saved with ⇧S while measuring." = "The name of a set saved with ⇧S while measuring.";
 
 /* src/app/mod.rs */
 "The shortcut is not available" = "The shortcut is not available";
@@ -657,6 +717,9 @@
 
 /* src/app/menu.rs */
 "Update to PixlSnapz {version}…" = "Update to PixlSnapz {version}…";
+
+/* macos/intents/Intents.swift */
+"Vertical" = "Vertical";
 
 /* src/settings.rs */
 "Vertical only" = "Vertical only";

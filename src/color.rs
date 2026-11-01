@@ -260,12 +260,57 @@ impl Palettes {
         self.palettes.retain(|p| !p.name.eq_ignore_ascii_case(name));
     }
 
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut Palette> {
+        self.palettes.iter_mut().find(|p| p.name.eq_ignore_ascii_case(name))
+    }
+
+    /// Adds `rgb` to the end of palette `name` (made if missing), unless it
+    /// is already in it.
+    pub fn add_color(&mut self, name: &str, rgb: [u8; 3]) {
+        if self.get_mut(name).is_none() {
+            self.put(name, Vec::new());
+        }
+        if let Some(p) = self.get_mut(name)
+            && !p.colors.contains(&rgb)
+        {
+            p.colors.push(rgb);
+        }
+    }
+
+    /// Renames palette `from` to `to`. False when `to` is empty or another
+    /// palette already has that name.
+    pub fn rename(&mut self, from: &str, to: &str) -> bool {
+        let to = to.trim();
+        let taken = self.palettes.iter().any(|p| p.name.eq_ignore_ascii_case(to) && !p.name.eq_ignore_ascii_case(from));
+        if to.is_empty() || taken {
+            return false;
+        }
+        match self.get_mut(from) {
+            Some(p) => {
+                p.name = to.to_string();
+                true
+            }
+            None => false,
+        }
+    }
+
     /// "Palette 1", "Palette 2", ...: the first such name not taken.
     pub fn unused_name(&self, base: &str) -> String {
         (1..)
             .map(|n| format!("{base} {n}"))
             .find(|n| !self.palettes.iter().any(|p| p.name.eq_ignore_ascii_case(n)))
             .expect("a free name")
+    }
+}
+
+impl Palette {
+    /// Moves color `index` by `by` places (up when negative), within bounds.
+    pub fn move_color(&mut self, index: usize, by: isize) {
+        let Some(to) = index.checked_add_signed(by).filter(|t| *t < self.colors.len()) else { return };
+        if index < self.colors.len() {
+            let c = self.colors.remove(index);
+            self.colors.insert(to, c);
+        }
     }
 }
 
@@ -524,6 +569,23 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
         p.remove("BRAND");
         assert!(p.palettes.is_empty());
+
+        // Editing.
+        p.add_color("Web", [1, 2, 3]);
+        p.add_color("web", [4, 5, 6]);
+        p.add_color("Web", [1, 2, 3]);
+        assert_eq!(p.palettes[0].colors, vec![[1, 2, 3], [4, 5, 6]]);
+        p.palettes[0].move_color(1, -1);
+        assert_eq!(p.palettes[0].colors, vec![[4, 5, 6], [1, 2, 3]]);
+        p.palettes[0].move_color(1, 1);
+        p.palettes[0].move_color(0, -1);
+        assert_eq!(p.palettes[0].colors, vec![[4, 5, 6], [1, 2, 3]]);
+        p.put("Print", Vec::new());
+        assert!(!p.rename("Web", "print"));
+        assert!(!p.rename("Web", " "));
+        assert!(p.rename("Web", "Site"));
+        assert!(p.rename("site", "SITE"));
+        assert_eq!(p.palettes[0].name, "SITE");
 
         let colors = [[255, 0, 0], [0, 128, 255]];
         let css = String::from_utf8(Export::Css.render("My Brand!", &colors)).unwrap();

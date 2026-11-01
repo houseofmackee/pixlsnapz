@@ -13,6 +13,12 @@
 /* src/settings_window/mod.rs */
 "Add App…" = "Añadir app…";
 
+/* src/settings_window/colors.rs */
+"Add the color to a new palette named" = "Añadir el color a una paleta nueva llamada";
+
+/* src/settings_window/colors.rs */
+"Add to Palette" = "Añadir a la paleta";
+
 /* src/settings_window/recorder.rs */
 "Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)" = "Añade ⌘, ⌥, ⌃ o ⇧ (Esc cancela)";
 
@@ -24,6 +30,9 @@
 
 /* src/units.rs */
 "angle" = "ángulo";
+
+/* src/settings_window/colors.rs */
+"Another palette is called {new}." = "Otra paleta ya se llama {new}.";
 
 /* src/overlay/keys.rs */
 "Area tool" = "Herramienta de área";
@@ -155,6 +164,9 @@
 "Could not export the colors" = "No se pudieron exportar los colores";
 
 /* src/settings_window/colors.rs */
+"Could not rename the palette" = "No se pudo cambiar el nombre de la paleta";
+
+/* src/settings_window/colors.rs */
 "Could not save the palette" = "No se pudo guardar la paleta";
 
 /* src/overlay/actions.rs */
@@ -213,6 +225,9 @@
 
 /* src/overlay/keys.rs */
 "difference" = "diferencia";
+
+/* macos/intents/Intents.swift */
+"Direction" = "Dirección";
 
 /* src/overlay/draw.rs */
 "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Arrastrar un tirador: editar  ·  ⌥ sobre un área: espacios  ·  ⌃-clic: ventana  ·  V H: guías  ·  ⌥ flechas: siguiente borde  ·  X: direcciones  ·  Desplazar o [ ]: tolerancia  ·  N bordes suaves";
@@ -295,6 +310,9 @@
 /* src/settings_window/mod.rs */
 "Hold ⌃ over a window to measure the button, field, or image under the pointer. Needs Accessibility permission (System Settings > Privacy & Security)." = "Mantén ⌃ sobre una ventana para medir el botón, campo o imagen bajo el puntero. Requiere permiso de accesibilidad (Ajustes del Sistema > Privacidad y seguridad).";
 
+/* macos/intents/Intents.swift */
+"Horizontal" = "Horizontal";
+
 /* src/settings.rs */
 "Horizontal only" = "Solo horizontal";
 
@@ -346,7 +364,7 @@
 /* src/settings_window/mod.rs */
 "Margin (pt):" = "Margen (pt):";
 
-/* src/app/menu.rs */
+/* macos/intents/Intents.swift, src/app/menu.rs */
 "Measure" = "Medir";
 
 /* src/app/menu.rs */
@@ -367,6 +385,9 @@
 /* src/overlay/keys.rs */
 "Measure: {name}" = "Medir: {name}";
 
+/* macos/intents/Intents.swift */
+"Measurement Set" = "Conjunto de medidas";
+
 /* src/app/menu.rs */
 "Measurement Sets" = "Conjuntos de medidas";
 
@@ -385,11 +406,23 @@
 /* src/units.rs */
 "millimeters" = "milímetros";
 
+/* src/settings_window/colors.rs */
+"Move Down" = "Bajar";
+
 /* src/overlay/mod.rs */
 "Move the pointer to measure the distances to the nearest edges; drag to measure an area. Command-C copies the measurement, Escape finishes." = "Mueve el puntero para medir las distancias a los bordes más cercanos; arrastra para medir un área. Comando-C copia la medida, Escape termina.";
 
+/* src/settings_window/colors.rs */
+"Move Up" = "Subir";
+
 /* src/app/menu.rs */
 "New Horizontal Ruler" = "Nueva regla horizontal";
+
+/* src/settings_window/colors.rs */
+"New Palette…" = "Nueva paleta…";
+
+/* macos/intents/Intents.swift */
+"New Ruler" = "Nueva regla";
 
 /* src/app/menu.rs */
 "New Vertical Ruler" = "Nueva regla vertical";
@@ -439,13 +472,19 @@
 /* src/app/mod.rs */
 "Open System Settings" = "Abrir Ajustes del Sistema";
 
+/* macos/intents/Intents.swift */
+"Opens a floating ruler that stays on screen." = "Abre una regla flotante que se queda en la pantalla.";
+
+/* macos/intents/Intents.swift */
+"Opens the Colors window with recent colors and palettes." = "Abre la ventana Colores con los colores recientes y las paletas.";
+
 /* src/settings.rs */
 "Orange" = "Naranja";
 
 /* src/settings_window/colors.rs */
 "Palette" = "Paleta";
 
-/* src/app/menu.rs */
+/* macos/intents/Intents.swift, src/app/menu.rs */
 "Pick Color" = "Tomar color";
 
 /* src/settings_window/mod.rs */
@@ -502,8 +541,17 @@
 /* src/app/menu.rs, src/settings_window/colors.rs */
 "Recent Colors" = "Colores recientes";
 
+/* src/settings_window/colors.rs */
+"Remove from Palette" = "Quitar de la paleta";
+
 /* src/app/menu.rs */
 "Remove Image" = "Quitar imagen";
+
+/* src/settings_window/colors.rs */
+"Rename the palette to" = "Cambiar el nombre de la paleta a";
+
+/* src/settings_window/colors.rs */
+"Rename…" = "Cambiar nombre…";
 
 /* src/overlay/keys.rs */
 "Restored {n} items" = "{n} elementos restaurados";
@@ -529,7 +577,7 @@
 /* src/settings_window/colors.rs */
 "Save the recent colors as a palette named" = "Guardar los colores recientes como paleta llamada";
 
-/* src/overlay/actions.rs, src/overlay/draw.rs */
+/* src/overlay/actions.rs, src/overlay/draw.rs, src/overlay/naming.rs */
 "Save these measurements and guides as" = "Guardar estas medidas y guías como";
 
 /* src/settings_window/mod.rs */
@@ -568,6 +616,9 @@
 /* src/app/menu.rs */
 "Show Aspect Ratio" = "Mostrar relación de aspecto";
 
+/* macos/intents/Intents.swift */
+"Show Colors" = "Mostrar colores";
+
 /* src/app/menu.rs */
 "Show Loupe" = "Mostrar lupa";
 
@@ -591,6 +642,9 @@
 
 /* src/app/menu.rs */
 "Show While Measuring" = "Mostrar al medir";
+
+/* macos/intents/Intents.swift */
+"Shows the loupe; a click copies the color under the pointer." = "Muestra la lupa; un clic copia el color bajo el puntero.";
 
 /* src/app/menu.rs */
 "Size Format" = "Formato de tamaño";
@@ -621,6 +675,12 @@
 
 /* src/settings_window/mod.rs */
 "Square size (pt):" = "Tamaño del cuadrado (pt):";
+
+/* macos/intents/Intents.swift */
+"Starts measuring on screen, optionally with a saved measurement set." = "Empieza a medir en pantalla, opcionalmente con un conjunto de medidas guardado.";
+
+/* macos/intents/Intents.swift */
+"The name of a set saved with ⇧S while measuring." = "El nombre de un conjunto guardado con ⇧S al medir.";
 
 /* src/app/mod.rs */
 "The shortcut is not available" = "El atajo no está disponible";
@@ -657,6 +717,9 @@
 
 /* src/app/menu.rs */
 "Update to PixlSnapz {version}…" = "Actualizar a PixlSnapz {version}…";
+
+/* macos/intents/Intents.swift */
+"Vertical" = "Vertical";
 
 /* src/settings.rs */
 "Vertical only" = "Solo vertical";

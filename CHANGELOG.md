@@ -7,6 +7,20 @@ the GitHub release shows.
 
 ## [Unreleased]
 
+### Added
+
+- Palettes can be edited in the Colors window: right-click a color to add
+  it to a palette (or a new one), or to remove it or move it up or down
+  within a palette; Rename… renames the palette shown.
+- Rulers come back where they were after a restart, and a clicked ruler
+  takes the arrow keys (⇧: ten points), R to rotate, and ⌫ to close.
+- The Shortcuts actions are in German, French, and Spanish too.
+
+### Changed
+
+- The name of a set (⇧S) is typed in a real text field: paste, input
+  methods, and the usual editing keys work.
+
 ## [0.3.0] - 2026-11-01
 
 ### Added

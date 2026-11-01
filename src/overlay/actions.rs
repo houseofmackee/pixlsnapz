@@ -223,32 +223,31 @@ fn prompt<T>(run: impl FnOnce() -> T) -> T {
     result
 }
 
-/// ⇧S: asks for a name (typed on the overlay itself: a separate window
-/// would not reliably get the keyboard, as PixlSnapz is not the active app)
-/// to save what is on screen as a set.
+/// ⇧S: asks for a name (in a field on the overlay) to save what is on
+/// screen as a set.
 pub(super) fn save_set() {
     let sets = crate::items::SavedSets::load_from(&crate::items::SavedSets::path());
+    let mut suggestion = None;
     update(|s| {
         if s.items.is_empty() {
             s.toast(t!("Measure something first"));
             return;
         }
-        let suggestion = s.current_set.clone().unwrap_or_else(|| sets.unused_name(&t!("Set")));
-        announce(&format!("{} {suggestion}", t!("Save these measurements and guides as")));
-        s.naming = Some((suggestion, true));
+        let name = s.current_set.clone().unwrap_or_else(|| sets.unused_name(&t!("Set")));
+        announce(&format!("{} {name}", t!("Save these measurements and guides as")));
+        suggestion = Some(name);
     });
+    if let Some(name) = suggestion {
+        super::naming::start(&name);
+    }
 }
 
-/// Return while naming a set: saves it.
-pub(super) fn commit_set() {
-    let Some(name) = SESSION.with(|s| s.borrow_mut().as_mut().and_then(|s| s.naming.take())).map(|(n, _)| n) else {
-        return;
-    };
-    let name = name.trim().to_string();
+/// Saves what is on screen as set `name` (nothing for an empty name).
+pub(super) fn save_set_as(name: &str) {
     if name.is_empty() {
-        redraw_all();
         return;
     }
+    let name = name.to_string();
     let path = crate::items::SavedSets::path();
     let mut sets = crate::items::SavedSets::load_from(&path);
     let items = SESSION.with(|s| s.borrow().as_ref().map(|s| s.saved().items)).unwrap_or_default();

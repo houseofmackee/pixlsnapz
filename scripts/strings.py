@@ -6,7 +6,9 @@ Usage: python3 -I scripts/strings.py [--check]
 
 Strings are the literals in t!(...), n!(...) and tr(...), and the titles
 passed to the menu helpers (item, check, submenu) and the Settings helpers
-(checkbox, button, .row). With --check, nothing is written: it fails when
+(checkbox, button, .row); and in the Shortcuts actions
+(macos/intents/*.swift), the titles, descriptions, and names App Intents
+shows, which it looks up in the same Localizable.strings. With --check, nothing is written: it fails when
 the template is out of date, or when a translation in macos/<language>.lproj
 is missing a string, has an empty one, or changes a string's {placeholders}.
 To add a language: copy the template to macos/<language>.lproj, translate
@@ -27,6 +29,15 @@ PATTERNS = [
     re.compile(r"\b(?:item|check|submenu)\(\s*&?[\w.]+\s*,\s*" + LITERAL, re.S),
     re.compile(r"\b(?:checkbox|button)\(\s*" + LITERAL, re.S),
     re.compile(r"\.row\(\s*" + LITERAL, re.S),
+]
+# App Intents' localized strings: titles, descriptions, parameter titles,
+# enum case names, and short titles.
+SWIFT_PATTERNS = [
+    re.compile(r"LocalizedStringResource\s*=\s*" + LITERAL),
+    re.compile(r"TypeDisplayRepresentation\s*=\s*" + LITERAL),
+    re.compile(r"IntentDescription\(\s*" + LITERAL),
+    re.compile(r"\b(?:title|description|shortTitle):\s*" + LITERAL),
+    re.compile(r"^\s*\.\w+:\s*" + LITERAL, re.M),
 ]
 PLACEHOLDER = re.compile(r"(?<!\{)\{(\w+)\}(?!\})")
 
@@ -57,6 +68,13 @@ def collect() -> dict[str, list[str]]:
                     continue
                 # File names only: line numbers would make every edit stale.
                 found.setdefault(text, []).append(str(path.relative_to(ROOT)))
+    for path in sorted((ROOT / "macos/intents").glob("*.swift")):
+        source = path.read_text()
+        for pattern in SWIFT_PATTERNS:
+            for match in pattern.finditer(source):
+                text = unescape(match.group(1))
+                if text.strip() and "\\(" not in match.group(1):
+                    found.setdefault(text, []).append(str(path.relative_to(ROOT)))
     return found
 
 
