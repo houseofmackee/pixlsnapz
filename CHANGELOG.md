@@ -34,6 +34,8 @@ the GitHub release shows.
 
 ### Fixed
 
+- The Settings window fits on smaller screens: it is as tall as the screen
+  allows, can be resized, and scrolls.
 - Measuring no longer ends when PixlSnapz itself becomes active.
 - Screenshots for measuring leave out PixlSnapz's own windows.
 

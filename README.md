@@ -135,7 +135,7 @@ cargo test                     # edge detection, snapping, edge jumps, lines, un
 cargo clippy --all-targets
 ```
 
-The edge detection (`src/measure.rs`) works on a plain RGBA buffer and has no AppKit dependency, so it is fully unit tested. The rest is AppKit through `objc2`: `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit, `src/overlay.rs` shows one transparent, non-activating panel per display and draws the measurements, `src/settings_window.rs` is the Settings window, and `src/app.rs` owns the menu bar item and the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission).
+The edge detection (`src/measure.rs`) works on a plain RGBA buffer and has no AppKit dependency, so it is fully unit tested. The rest is AppKit through `objc2`: `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit, `src/overlay/` shows one transparent, non-activating panel per display: `view.rs` (window, view, and mouse input), `session.rs` (session state and logic), `keys.rs` (keyboard commands), `actions.rs` (copying and screenshots), and `draw.rs` (drawing), `src/settings_window.rs` is the Settings window, and `src/app.rs` owns the menu bar item and the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission).
 
 GitHub Actions runs `cargo fmt --check`, `cargo clippy -D warnings` (debug and release), `cargo test`, a bundle build, and `cargo deny check` on every push to main and every pull request.
 
