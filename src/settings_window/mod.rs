@@ -3,22 +3,24 @@
 //! change is saved right away.
 
 use std::cell::RefCell;
-use std::ptr::NonNull;
 
-use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSBackingStoreType, NSButton, NSControlStateValueOff, NSControlStateValueOn, NSEvent, NSEventMask,
-    NSEventModifierFlags, NSModalResponseOK, NSOpenPanel, NSPopUpButton, NSSlider, NSTabView, NSTabViewItem,
-    NSTextAlignment, NSTextField, NSView, NSWindow, NSWindowStyleMask,
+    NSAccessibility, NSApplication, NSBackingStoreType, NSButton, NSControlStateValueOff, NSControlStateValueOn,
+    NSPopUpButton, NSSlider, NSTabView, NSTabViewItem, NSTextAlignment, NSTextField, NSView, NSWindow,
+    NSWindowStyleMask,
 };
 use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString};
 
 use crate::color::{ColorFormat, Vision};
 use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, LOUPE_ZOOMS, Settings, Units};
-use crate::shortcut::{CMD, CONTROL, OPTION, SHIFT, Shortcut};
+
+mod pickers;
+mod recorder;
+use pickers::*;
+use recorder::*;
 
 const WIDTH: f64 = 580.0;
 /// Fits the tallest tab (Measuring) on any screen.
@@ -144,6 +146,8 @@ impl Layout {
         self.view.addSubview(&label);
         let h = control.fittingSize().height.clamp(18.0, 26.0);
         control.setFrame(rect(LABEL_WIDTH + 30.0, self.y() + (ROW - h) / 2.0, width, h));
+        // VoiceOver reads the row's title for the control next to it.
+        control.setAccessibilityLabel(Some(&ns(title.trim_end_matches(':'))));
         self.view.addSubview(control);
         self.top -= ROW;
     }
@@ -299,6 +303,8 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
         smooth: checkbox("Smooth edges for photos and gradients (N)", t, mtm),
     };
     c.ppi.setPlaceholderString(Some(&ns("Automatic")));
+    // The slider describes its own value (below); the label repeats it.
+    c.tolerance_value.setAccessibilityElement(false);
     c.folder.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingMiddle);
     c.disabled_apps.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingTail);
 
@@ -394,6 +400,7 @@ pub fn refresh() {
         c.ppi.setStringValue(&ns(&if s.screen_ppi > 0.0 { number_text(s.screen_ppi) } else { String::new() }));
         c.tolerance.setDoubleValue(f64::from(s.tolerance));
         c.tolerance_value.setStringValue(&ns(&s.tolerance_name()));
+        c.tolerance.setAccessibilityValueDescription(Some(&ns(&format!("{} ({})", s.tolerance_name(), s.tolerance))));
         set_check(&c.snap, s.snap_areas);
         c.axes.selectItemAtIndex(AXES.iter().position(|a| *a == s.axes).unwrap_or(0) as isize);
         set_check(&c.aspect, s.show_aspect_ratio);
@@ -483,136 +490,74 @@ fn controls_changed() {
     refresh();
 }
 
-/// Waits for the next key combination and makes it the shortcut.
-fn start_recording() {
-    if MONITOR.with(|m| m.borrow().is_some()) {
-        return;
-    }
-    crate::app::suspend_hotkey();
-    // The keys must come to this window: the click on the recorder lets the
-    // app become active.
-    if let Some(mtm) = MainThreadMarker::new() {
-        NSApplication::sharedApplication(mtm).activate();
-    }
+/// For the UI tests: builds the Settings window (without showing it) and
+/// describes each tab, top to bottom, as "tab | kind | text | VoiceOver
+/// label" lines, plus a list of layout problems: controls overlapping or
+/// outside their tab, and controls VoiceOver could not name.
+#[doc(hidden)]
+pub fn layout_report_for_tests(mtm: MainThreadMarker) -> (String, Vec<String>) {
+    let built = build(mtm);
+    WINDOW.with(|w| *w.borrow_mut() = Some(built));
+    refresh();
+    let mut report = String::new();
+    let mut problems = Vec::new();
     WINDOW.with(|w| {
-        if let Some(w) = w.borrow().as_ref() {
-            w.window.makeKeyAndOrderFront(None);
-            w.c.shortcut.setTitle(&ns("Type a shortcut (Esc cancels)"));
-            tracing::debug!("recording a shortcut; settings window key: {}", w.window.isKeyWindow());
-        }
-    });
-    let handler = RcBlock::new(|event: NonNull<NSEvent>| -> *mut NSEvent {
-        // SAFETY: AppKit passes a valid event.
-        let event = unsafe { event.as_ref() };
-        let flags = event.modifierFlags();
-        let mut modifiers = 0;
-        for (flag, bit) in [
-            (NSEventModifierFlags::Command, CMD),
-            (NSEventModifierFlags::Shift, SHIFT),
-            (NSEventModifierFlags::Option, OPTION),
-            (NSEventModifierFlags::Control, CONTROL),
-        ] {
-            if flags.contains(flag) {
-                modifiers |= bit;
-            }
-        }
-        let code = event.keyCode();
-        if code == KEY_ESCAPE && modifiers == 0 {
-            finish_recording(None);
-        } else if let Some(shortcut) = Shortcut::from_key(code, modifiers) {
-            finish_recording(Some(shortcut));
-        } else {
-            WINDOW.with(|w| {
-                if let Some(w) = w.borrow().as_ref() {
-                    w.c.shortcut.setTitle(&ns("Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)"));
+        let w = w.borrow();
+        let Some(w) = w.as_ref() else { return };
+        for (i, tab) in TAB_TITLES.iter().enumerate() {
+            let Some(view) = w.tabs.tabViewItemAtIndex(i as isize).view(mtm) else { continue };
+            let bounds = view.bounds();
+            let mut rows: Vec<(f64, f64, String, NSRect, bool)> = Vec::new();
+            for sub in view.subviews().iter() {
+                let any: &AnyObject = sub.as_ref();
+                let (kind, text, needs_label) = if let Some(p) = any.downcast_ref::<NSPopUpButton>() {
+                    ("popup", p.titleOfSelectedItem().map(|t| t.to_string()).unwrap_or_default(), true)
+                } else if let Some(b) = any.downcast_ref::<NSButton>() {
+                    let on = if b.state() == NSControlStateValueOn { " [on]" } else { "" };
+                    ("button", format!("{}{on}", b.title()), false)
+                } else if let Some(s) = any.downcast_ref::<NSSlider>() {
+                    ("slider", format!("{}", s.doubleValue()), true)
+                } else if let Some(f) = any.downcast_ref::<NSTextField>() {
+                    let kind = if f.isEditable() { "field" } else { "label" };
+                    (kind, f.stringValue().to_string(), f.isEditable())
+                } else {
+                    ("view", String::new(), false)
+                };
+                let label = sub.accessibilityLabel().map(|l| l.to_string()).unwrap_or_default();
+                if needs_label && label.is_empty() {
+                    problems.push(format!("{tab}: a {kind} has no VoiceOver label"));
                 }
-            });
-        }
-        // Swallow the key either way.
-        std::ptr::null_mut()
-    });
-    // SAFETY: the handler has the expected signature; the monitor is removed in `finish_recording`.
-    let monitor = unsafe { NSEvent::addLocalMonitorForEventsMatchingMask_handler(NSEventMask::KeyDown, &handler) };
-    MONITOR.with(|m| *m.borrow_mut() = monitor);
-}
-
-fn finish_recording(shortcut: Option<Shortcut>) {
-    if let Some(monitor) = MONITOR.with(|m| m.borrow_mut().take()) {
-        // SAFETY: the monitor came from addLocalMonitorForEventsMatchingMask.
-        unsafe { NSEvent::removeMonitor(&monitor) };
-    }
-    if let Some(shortcut) = shortcut {
-        let mut s = Settings::load();
-        s.shortcut = shortcut.to_config();
-        if let Err(e) = s.save() {
-            tracing::warn!("saving settings: {e:#}");
-        }
-    }
-    crate::app::resume_hotkey();
-    refresh();
-}
-
-/// An app's name from its bundle identifier, or the identifier itself.
-fn app_name(bundle_id: &str) -> String {
-    objc2_app_kit::NSWorkspace::sharedWorkspace()
-        .URLForApplicationWithBundleIdentifier(&ns(bundle_id))
-        .and_then(|url| url.lastPathComponent())
-        .map(|n| n.to_string().trim_end_matches(".app").to_string())
-        .unwrap_or_else(|| bundle_id.to_string())
-}
-
-fn save_and_refresh(s: &Settings) {
-    if let Err(e) = s.save() {
-        tracing::warn!("saving settings: {e:#}");
-    }
-    crate::app::settings_updated();
-    refresh();
-}
-
-/// Adds an app, chosen in Applications, to those the shortcut is off in.
-fn add_disabled_app() {
-    let Some(mtm) = MainThreadMarker::new() else { return };
-    let panel = NSOpenPanel::openPanel(mtm);
-    panel.setCanChooseDirectories(false);
-    panel.setCanChooseFiles(true);
-    panel.setTreatsFilePackagesAsDirectories(false);
-    panel.setDirectoryURL(Some(&objc2_foundation::NSURL::fileURLWithPath(&ns("/Applications"))));
-    panel.setPrompt(Some(&ns("Turn Off Shortcut")));
-    panel.setMessage(Some(&ns("Choose an app in which the measure shortcut is left to the app.")));
-    if panel.runModal() != NSModalResponseOK {
-        return;
-    }
-    let Some(path) = panel.URL().and_then(|u| u.path()) else { return };
-    let id = objc2_foundation::NSBundle::bundleWithPath(&path).and_then(|b| b.bundleIdentifier());
-    match id {
-        Some(id) => {
-            let mut s = Settings::load();
-            let id = id.to_string();
-            if s.shortcut_enabled_in(&id) {
-                s.toggle_disabled_app(&id);
+                let f = sub.frame();
+                let line = format!("{tab} | {kind} | {text} | {label}");
+                rows.push((-(f.origin.y + f.size.height), f.origin.x, line, f, kind != "label"));
             }
-            save_and_refresh(&s);
+            rows.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+            for (_, _, line, f, _) in &rows {
+                report.push_str(line.trim_end());
+                report.push('\n');
+                let inside = f.origin.x >= 0.0
+                    && f.origin.y >= 0.0
+                    && f.origin.x + f.size.width <= bounds.size.width + 0.5
+                    && f.origin.y + f.size.height <= bounds.size.height + 0.5;
+                if !inside {
+                    problems.push(format!("{tab}: outside the tab: {line}"));
+                }
+            }
+            // Controls (not labels) must not overlap each other.
+            let controls: Vec<&(f64, f64, String, NSRect, bool)> = rows.iter().filter(|r| r.4).collect();
+            for (a, ra) in controls.iter().enumerate() {
+                for rb in &controls[a + 1..] {
+                    let (fa, fb) = (ra.3, rb.3);
+                    let overlap_x =
+                        fa.origin.x < fb.origin.x + fb.size.width && fb.origin.x < fa.origin.x + fa.size.width;
+                    let overlap_y =
+                        fa.origin.y < fb.origin.y + fb.size.height && fb.origin.y < fa.origin.y + fa.size.height;
+                    if overlap_x && overlap_y {
+                        problems.push(format!("{tab}: overlapping: {} and {}", ra.2, rb.2));
+                    }
+                }
+            }
         }
-        None => crate::app::show_alert("Not an app", &format!("{path} has no bundle identifier.")),
-    }
-}
-
-fn choose_folder() {
-    let Some(mtm) = MainThreadMarker::new() else { return };
-    let panel = NSOpenPanel::openPanel(mtm);
-    panel.setCanChooseDirectories(true);
-    panel.setCanChooseFiles(false);
-    panel.setCanCreateDirectories(true);
-    panel.setPrompt(Some(&ns("Choose")));
-    if panel.runModal() == NSModalResponseOK
-        && let Some(path) = panel.URL().and_then(|u| u.path())
-    {
-        let mut s = Settings::load();
-        s.screenshot_folder = path.to_string();
-        if let Err(e) = s.save() {
-            tracing::warn!("saving settings: {e:#}");
-        }
-        crate::app::settings_updated();
-        refresh();
-    }
+    });
+    (report, problems)
 }

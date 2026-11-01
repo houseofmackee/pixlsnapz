@@ -1,18 +1,7 @@
-#[cfg(not(target_os = "macos"))]
-compile_error!("PixlSnapz only builds for macOS");
-
-mod app;
-mod capture;
-mod hotkeys;
-mod login_item;
-mod overlay;
-mod settings_window;
-mod updates;
-
 use std::process::ExitCode;
 
 use objc2_foundation::{NSDistributedNotificationCenter, NSString};
-use pixlsnapz::{color, items, measure, settings, shortcut};
+use pixlsnapz::app;
 
 const USAGE: &str = "\
 PixlSnapz: measure anything on your screen

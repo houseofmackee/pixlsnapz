@@ -1,0 +1,49 @@
+General | button | ⇧⌘1 | Measure shortcut
+General | label | Measure shortcut: |
+General | button | Launch at login | Launch at login
+General | button | Show shortcut hints while measuring [on] | Show shortcut hints while measuring
+General | button | Check for updates automatically | Check for updates automatically
+General | button | Add App… | Add App…
+General | button | Clear | Clear
+General | label | No apps | Shortcut off in
+General | label | Shortcut off in: |
+General | button | Open Settings File | Open Settings File
+Measuring | popup | Points | Units
+Measuring | label | Units: |
+Measuring | button | Show units (pt, px, mm, in) | Show units (pt, px, mm, in)
+Measuring | popup | 100% | Design zoom
+Measuring | label | Design zoom: |
+Measuring | field |  | Screen PPI (mm, in)
+Measuring | label | Screen PPI (mm, in): |
+Measuring | slider | 8 | Edge tolerance
+Measuring | label | Low |
+Measuring | label | Edge tolerance: |
+Measuring | button | Snap areas to their content [on] | Snap areas to their content
+Measuring | button | Smooth edges for photos and gradients (N) | Smooth edges for photos and gradients (N)
+Measuring | popup | Both directions | Measure
+Measuring | label | Measure: |
+Measuring | button | Show the aspect ratio of areas | Show the aspect ratio of areas
+Measuring | button | Freeze the screen while measuring | Freeze the screen while measuring
+Colors & Loupe | popup | Pink | Guide color
+Colors & Loupe | label | Guide color: |
+Colors & Loupe | popup | Hex | Copy colors as
+Colors & Loupe | label | Copy colors as: |
+Colors & Loupe | button | Show the loupe | Show the loupe
+Colors & Loupe | popup | 8× | Loupe zoom
+Colors & Loupe | label | Loupe zoom: |
+Colors & Loupe | popup | Normal vision | Loupe vision
+Colors & Loupe | label | Loupe vision: |
+Grid | popup | Off | Grid (O while measuring)
+Grid | label | Grid (O while measuring): |
+Grid | field | 8 | Square size (pt)
+Grid | label | Square size (pt): |
+Grid | field | 12 | Columns
+Grid | label | Columns: |
+Grid | field | 20 | Gutter (pt)
+Grid | label | Gutter (pt): |
+Grid | field | 0 | Margin (pt)
+Grid | label | Margin (pt): |
+Screenshots | button | Choose… | Choose…
+Screenshots | label | /tmp/pixlsnapz-screenshots | Save to
+Screenshots | label | Save to: |
+Screenshots | button | Draw the measurements into screenshots [on] | Draw the measurements into screenshots

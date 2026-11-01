@@ -149,6 +149,30 @@ fn capture_display(display: &SCDisplay, excluded: &NSArray<SCRunningApplication>
     Ok(Shot { display_id, frame, image, width_mm })
 }
 
+/// A screenshot made from `frame`, as if display `display_id` had shown it
+/// (for tests).
+pub fn shot_from_frame(display_id: u32, frame: Frame) -> Option<Shot> {
+    let mut pixels = frame.pixels.clone();
+    // SAFETY: a static constant.
+    let space = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceSRGB }))?;
+    let info = CGImageAlphaInfo::PremultipliedLast.0 | CGImageByteOrderInfo::Order32Big.0;
+    // SAFETY: `pixels` holds `height` rows of `width * 4` bytes and outlives
+    // the context; the image copies them.
+    let context = unsafe {
+        CGBitmapContextCreate(
+            pixels.as_mut_ptr().cast(),
+            frame.width,
+            frame.height,
+            8,
+            frame.width * 4,
+            Some(&space),
+            info,
+        )
+    }?;
+    let image = objc2_core_graphics::CGBitmapContextCreateImage(Some(&context))?;
+    Some(Shot { display_id, frame, image, width_mm: 0.0 })
+}
+
 /// Draws `image` into an sRGB RGBA8 buffer.
 pub fn to_frame(image: &CGImage) -> Result<Frame> {
     let width = CGImage::width(Some(image));

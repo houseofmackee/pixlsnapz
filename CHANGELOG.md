@@ -13,6 +13,11 @@ the GitHub release shows.
   date by each release.
 - `PIXLSNAPZ_SHOW_SETTINGS=<tab>` opens Settings at a tab on launch (for
   screenshots and tests).
+- VoiceOver: every Settings control has a name, measuring announces kept
+  measurements, copies, and mode changes, and the measurement under the
+  pointer can be read on request.
+- With Increase Contrast or Reduce Transparency on, lines are thicker and
+  labels opaque with an outline.
 
 ## [0.1.1] - 2026-11-01
 

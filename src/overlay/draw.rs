@@ -5,14 +5,14 @@ use super::*;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2_app_kit::{
-    NSBezierPath, NSColor, NSCompositingOperation, NSFont, NSFontAttributeName, NSFontWeightMedium,
-    NSFontWeightRegular, NSForegroundColorAttributeName, NSGraphicsContext, NSImageInterpolation, NSStringDrawing,
+    NSBezierPath, NSColor, NSFont, NSFontAttributeName, NSFontWeightMedium, NSFontWeightRegular,
+    NSForegroundColorAttributeName, NSStringDrawing,
 };
 use objc2_foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
 
-use crate::color::{Vision, contrast_text};
+use crate::color::contrast_text;
 use crate::items::Item;
-use crate::measure::{Cross, PxRect, aspect_ratio, columns, format_length, grid_lines, line_angle, line_length};
+use crate::measure::{Cross, PxRect, aspect_ratio, columns, grid_lines, line_angle, line_length};
 use crate::settings::{Axes, Grid};
 
 pub(super) fn color(rgb: [f64; 3], alpha: f64) -> Retained<NSColor> {
@@ -51,7 +51,14 @@ pub(super) fn pill(text: &str, at: NSPoint, bounds: NSSize, size: f64, fill: &NS
     let y = at.y.clamp(2.0, (bounds.height - ps.height - 2.0).max(2.0));
     let r = NSRect::new(NSPoint::new(x, y), ps);
     fill.setFill();
-    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(r, 4.0, 4.0).fill();
+    let shape = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(r, 4.0, 4.0);
+    shape.fill();
+    if high_contrast() {
+        // An outline keeps labels apart from whatever is behind them.
+        NSColor::whiteColor().setStroke();
+        shape.setLineWidth(1.5);
+        shape.stroke();
+    }
     // SAFETY: the attributes have the expected types.
     unsafe { s.drawAtPoint_withAttributes(NSPoint::new(x + 7.0, y + 3.0), Some(&attrs)) };
     r
@@ -64,7 +71,8 @@ pub(super) fn pill_centered(text: &str, center: NSPoint, bounds: NSSize, size: f
 }
 
 pub(super) fn dark() -> Retained<NSColor> {
-    NSColor::colorWithSRGBRed_green_blue_alpha(0.09, 0.09, 0.11, 0.9)
+    let alpha = if high_contrast() { 1.0 } else { 0.9 };
+    NSColor::colorWithSRGBRed_green_blue_alpha(0.09, 0.09, 0.11, alpha)
 }
 
 /// Lines from edge to edge through the point, with end ticks and a label
@@ -74,7 +82,7 @@ pub(super) fn draw_cross(s: &Session, o: &Overlay, x: usize, y: usize, c: &Cross
     let (l, r) = (o.pt(c.left), o.pt(c.right));
     let (t, b) = (o.pt(c.top), o.pt(c.bottom));
     let path = NSBezierPath::bezierPath();
-    path.setLineWidth(1.0);
+    path.setLineWidth(lw(1.0));
     let tick = 5.0;
     if axes.horizontal() {
         line(&path, (l, cy), (r, cy));
@@ -108,11 +116,11 @@ pub(super) fn draw_circle(s: &Session, o: &Overlay, (cx, cy, r): (f64, f64, f64)
         NSSize::new(2.0 * rad, 2.0 * rad),
     ));
     oval.fill();
-    oval.setLineWidth(1.5);
+    oval.setLineWidth(lw(1.5));
     accent.setStroke();
     oval.stroke();
     let radius = NSBezierPath::bezierPath();
-    radius.setLineWidth(1.0);
+    radius.setLineWidth(lw(1.0));
     line(&radius, (x, y), (x + rad, y));
     line(&radius, (x + rad, y - 4.0), (x + rad, y + 4.0));
     radius.stroke();
@@ -126,7 +134,7 @@ pub(super) fn draw_line(s: &Session, o: &Overlay, (x0, y0, x1, y1): (f64, f64, f
     let len_pt = line_length(bx - ax, by - ay);
     let accent = color(rgb, 1.0);
     let path = NSBezierPath::bezierPath();
-    path.setLineWidth(1.5);
+    path.setLineWidth(lw(1.5));
     line(&path, (ax, ay), (bx, by));
     if len_pt > 0.0 {
         // Ticks across both ends.
@@ -143,7 +151,7 @@ pub(super) fn draw_line(s: &Session, o: &Overlay, (x0, y0, x1, y1): (f64, f64, f
     let radius = 28.0f64.min(len_pt * 0.6);
     if radius > 8.0 && angle.abs() > 0.5 && (angle.abs() - 180.0).abs() > 0.5 {
         let reference = NSBezierPath::bezierPath();
-        reference.setLineWidth(1.0);
+        reference.setLineWidth(lw(1.0));
         let dash = [3.0f64, 3.0];
         // SAFETY: `dash` holds two values.
         unsafe { reference.setLineDash_count_phase(dash.as_ptr().cast_mut().cast(), 2, 0.0) };
@@ -152,7 +160,7 @@ pub(super) fn draw_line(s: &Session, o: &Overlay, (x0, y0, x1, y1): (f64, f64, f
         color(rgb, 0.7).setStroke();
         reference.stroke();
         let arc = NSBezierPath::bezierPath();
-        arc.setLineWidth(1.0);
+        arc.setLineWidth(lw(1.0));
         let start = if dir > 0.0 { 0.0 } else { 180.0f64.copysign(angle) };
         let steps = 24;
         for i in 0..=steps {
@@ -172,10 +180,10 @@ pub(super) fn draw_line(s: &Session, o: &Overlay, (x0, y0, x1, y1): (f64, f64, f
 
 pub(super) fn draw_area(s: &Session, o: &Overlay, r: PxRect, rgb: [f64; 3]) {
     let rect = o.rect_pt(r);
-    color(rgb, 0.12).setFill();
+    color(rgb, if high_contrast() { 0.22 } else { 0.12 }).setFill();
     NSBezierPath::fillRect(rect);
     let path = NSBezierPath::bezierPathWithRect(rect);
-    path.setLineWidth(1.0);
+    path.setLineWidth(lw(1.0));
     color(rgb, 1.0).setStroke();
     path.stroke();
 
@@ -215,7 +223,7 @@ pub(super) fn draw_guides(s: &Session, o: &Overlay, index: usize, rgb: [f64; 3])
         return;
     }
     let path = NSBezierPath::bezierPath();
-    path.setLineWidth(1.0);
+    path.setLineWidth(lw(1.0));
     for &x in &v {
         let px = o.pt(x);
         line(&path, (px, 0.0), (px, o.size.height));
@@ -278,7 +286,7 @@ pub(super) fn draw_grid(s: &Session, o: &Overlay, index: usize, rgb: [f64; 3]) {
     match st.grid {
         Grid::Square => {
             let path = NSBezierPath::bezierPath();
-            path.setLineWidth(0.5);
+            path.setLineWidth(lw(0.5));
             for x in grid_lines(x0, x1, st.grid_size * zoom) {
                 line(&path, (x, y0), (x, y1));
             }
@@ -295,7 +303,7 @@ pub(super) fn draw_grid(s: &Session, o: &Overlay, index: usize, rgb: [f64; 3]) {
                 color(rgb, 0.1).setFill();
                 NSBezierPath::fillRect(r);
                 let edge = NSBezierPath::bezierPath();
-                edge.setLineWidth(0.5);
+                edge.setLineWidth(lw(0.5));
                 line(&edge, (left, y0), (left, y1));
                 line(&edge, (right, y0), (right, y1));
                 color(rgb, 0.4).setStroke();
@@ -327,7 +335,7 @@ pub(super) fn draw_contrast(o: &Overlay, p: NSPoint, first: [u8; 3], here: [u8; 
         let path = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(sw, 2.0, 2.0);
         path.fill();
         NSColor::colorWithWhite_alpha(1.0, 0.8).setStroke();
-        path.setLineWidth(0.5);
+        path.setLineWidth(lw(0.5));
         path.stroke();
     }
 }
@@ -337,7 +345,7 @@ pub(super) fn draw_contrast(o: &Overlay, p: NSPoint, first: [u8; 3], here: [u8; 
 pub(super) fn draw_alignment(o: &Overlay, x: usize, y: usize, rgb: [f64; 3]) {
     let (cx, cy) = ((x as f64 + 0.5) / o.scale, (y as f64 + 0.5) / o.scale);
     let path = NSBezierPath::bezierPath();
-    path.setLineWidth(1.0);
+    path.setLineWidth(lw(1.0));
     let dash = [4.0f64, 3.0];
     // SAFETY: `dash` holds two values.
     unsafe { path.setLineDash_count_phase(dash.as_ptr().cast_mut().cast(), 2, 0.0) };
@@ -345,110 +353,6 @@ pub(super) fn draw_alignment(o: &Overlay, x: usize, y: usize, rgb: [f64; 3]) {
     line(&path, (cx, 0.0), (cx, o.size.height));
     color(rgb, 0.6).setStroke();
     path.stroke();
-}
-
-pub(super) fn draw_loupe(s: &Session, o: &Overlay, x: usize, y: usize, cursor: NSPoint, rgb: [f64; 3]) {
-    let zoom = f64::from(s.settings.loupe_zoom.max(1));
-    // An odd number of pixels, so the one under the pointer is in the middle.
-    let radius = ((LOUPE_SIZE / zoom / 2.0).floor() as usize).max(1);
-    let n = radius * 2 + 1;
-    let side = n as f64 * zoom;
-    let mut origin = NSPoint::new(cursor.x + 24.0, cursor.y + 36.0);
-    if origin.x + side > o.size.width - 4.0 {
-        origin.x = cursor.x - 24.0 - side;
-    }
-    if origin.y + side + 30.0 > o.size.height - 4.0 {
-        origin.y = cursor.y - 24.0 - side - 30.0;
-    }
-    let dest = NSRect::new(origin, NSSize::new(side, side));
-
-    // Source rectangle in the image's points (NSImage: bottom-left origin).
-    let src_x = x as f64 - radius as f64;
-    let src_y = y as f64 - radius as f64;
-    let src = NSRect::new(
-        NSPoint::new(src_x / o.scale, o.size.height - (src_y + n as f64) / o.scale),
-        NSSize::new(n as f64 / o.scale, n as f64 / o.scale),
-    );
-
-    let Some(ctx) = NSGraphicsContext::currentContext() else { return };
-    ctx.saveGraphicsState();
-    let clip = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(dest, 10.0, 10.0);
-    NSColor::blackColor().setFill();
-    clip.fill();
-    clip.addClip();
-    ctx.setImageInterpolation(NSImageInterpolation::None);
-    let vision = s.settings.vision;
-    if vision == Vision::Normal {
-        // SAFETY: plain drawing; `respectFlipped` keeps the image upright in the flipped view.
-        unsafe {
-            o.image.drawInRect_fromRect_operation_fraction_respectFlipped_hints(
-                dest,
-                src,
-                NSCompositingOperation::Copy,
-                1.0,
-                true,
-                None,
-            )
-        };
-    } else {
-        // Each pixel as it looks with the simulated color vision.
-        let f = &o.shot.frame;
-        for j in 0..n {
-            for i in 0..n {
-                let (px, py) = (x as isize + i as isize - radius as isize, y as isize + j as isize - radius as isize);
-                if px < 0 || py < 0 || px as usize >= f.width || py as usize >= f.height {
-                    continue;
-                }
-                let [r, g, b] = vision.simulate(f.pixel(px as usize, py as usize));
-                NSColor::colorWithSRGBRed_green_blue_alpha(
-                    f64::from(r) / 255.0,
-                    f64::from(g) / 255.0,
-                    f64::from(b) / 255.0,
-                    1.0,
-                )
-                .setFill();
-                NSBezierPath::fillRect(NSRect::new(
-                    NSPoint::new(origin.x + i as f64 * zoom, origin.y + j as f64 * zoom),
-                    NSSize::new(zoom, zoom),
-                ));
-            }
-        }
-    }
-    // Pixel grid, when the pixels are big enough to see it.
-    let grid = NSBezierPath::bezierPath();
-    grid.setLineWidth(0.5);
-    for i in (1..n).filter(|_| zoom >= 6.0) {
-        let d = i as f64 * zoom;
-        line(&grid, (origin.x + d, origin.y), (origin.x + d, origin.y + side));
-        line(&grid, (origin.x, origin.y + d), (origin.x + side, origin.y + d));
-    }
-    NSColor::colorWithWhite_alpha(0.5, 0.25).setStroke();
-    grid.stroke();
-    // The pixel under the cursor.
-    let at = radius as f64 * zoom;
-    let mark = NSBezierPath::bezierPathWithRect(NSRect::new(
-        NSPoint::new(origin.x + at, origin.y + at),
-        NSSize::new(zoom, zoom),
-    ));
-    mark.setLineWidth(1.5);
-    color(rgb, 1.0).setStroke();
-    mark.stroke();
-    ctx.restoreGraphicsState();
-    let border = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(dest, 10.0, 10.0);
-    border.setLineWidth(1.0);
-    NSColor::colorWithWhite_alpha(1.0, 0.75).setStroke();
-    border.stroke();
-
-    // The color in the chosen format, and where the pointer is.
-    let at = |px: usize| format_length(px, o.scale, s.in_pixels());
-    let color_text = s.settings.color_format.short(o.shot.frame.pixel(x, y));
-    let mut text = format!("{color_text}   {}, {}", at(x), at(y));
-    if s.settings.vision != Vision::Normal {
-        let name = s.settings.vision.name();
-        text.push_str("   ");
-        text.push_str(name.split(' ').next().unwrap_or(name));
-    }
-    pill(&text, NSPoint::new(origin.x, origin.y + side + 5.0), o.size, 11.0, &dark());
 }
 
 pub(super) const HINTS: [&str; 3] = [

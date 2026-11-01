@@ -121,6 +121,32 @@ pub(super) struct Session {
 }
 
 impl Session {
+    pub(super) fn new(
+        overlays: Vec<Overlay>,
+        settings: Settings,
+        active: usize,
+        hover: Option<NSPoint>,
+        items: Vec<(usize, Item)>,
+    ) -> Session {
+        Session {
+            overlays,
+            settings,
+            active,
+            hover,
+            drag: None,
+            moving: false,
+            shift: false,
+            items,
+            toast: None,
+            tool: Tool::Area,
+            exporting: false,
+            scroll: 0.0,
+            settings_dirty: false,
+            contrast: None,
+            kept: false,
+        }
+    }
+
     pub(super) fn in_pixels(&self) -> bool {
         self.settings.units == Units::Pixels
     }
@@ -245,6 +271,9 @@ impl Session {
             Item::Area(r)
         };
         self.items.push((index, item));
+        if let Some(text) = self.copy_text() {
+            announce(&format!("Kept {text}"));
+        }
     }
 
     pub(super) fn add_guide(&mut self, vertical: bool) {
@@ -348,7 +377,9 @@ impl Session {
     }
 
     pub(super) fn toast(&mut self, text: impl Into<String>) {
-        self.toast = Some((text.into(), Instant::now()));
+        let text = text.into();
+        announce(&text);
+        self.toast = Some((text, Instant::now()));
         let block = RcBlock::new(|_timer: std::ptr::NonNull<NSTimer>| redraw_all());
         // SAFETY: a one-shot timer on the main run loop; the block is copied.
         let _ = unsafe {

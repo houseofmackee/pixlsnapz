@@ -35,3 +35,11 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 lto = "thin"
 codegen-units = 1
 strip = true
+
+[[test]]
+name = "settings_layout"
+harness = false
+
+[[test]]
+name = "overlay_render"
+harness = false

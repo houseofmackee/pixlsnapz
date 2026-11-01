@@ -61,6 +61,12 @@ Or download `PixlSnapz-<version>-arm64.dmg` from the [releases page](https://git
 
 PixlSnapz lives in the menu bar. The first time you measure, macOS asks to allow **Screen Recording**: PixlSnapz looks at the pixels on screen to find edges. Turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen PixlSnapz. Nothing is saved or sent anywhere, except screenshots you save yourself.
 
+## Accessibility
+
+- VoiceOver reads every Settings control by its name, announces what happens while measuring (each kept measurement, copies, and mode changes, such as "Kept 140 by 38"), and can read the measurement under the pointer on request (the overlay's value).
+- With **Increase Contrast** or **Reduce Transparency** on (System Settings > Accessibility > Display), lines are twice as thick and labels are opaque with an outline.
+- Every action has a keyboard shortcut, and the overlay never animates.
+
 ## Updates
 
 From 0.1.1 on, PixlSnapz updates itself with [Sparkle](https://sparkle-project.org): choose **Check for Updates…** in the menu bar icon's menu (it reads **Update to PixlSnapz X…** when a newer version was found), and turn automatic checks on or off in Settings > General. Updates are signed with PixlSnapz's own EdDSA key and the same Developer ID, so they install without warnings and keep the Screen Recording permission. New releases are published as pre-releases first; the update feed is the latest regular release's `appcast.xml`. Checking for updates contacts github.com and nothing else.
@@ -168,12 +174,18 @@ Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings fo
 ## Development
 
 ```sh
-cargo test                     # edge detection, snapping, edge jumps, lines, units, grids, colors, contrast, saved sessions, settings, and shortcuts
+cargo test                     # unit tests, plus UI tests that build the real Settings window and render measurements (tests/)
 cargo clippy --all-targets
 scripts/readme_screenshots.sh  # regenerate docs/screenshots from a demo window (needs cliclick and Accessibility for the terminal)
 ```
 
-The edge detection (`src/measure.rs`) works on a plain RGBA buffer and has no AppKit dependency, so it is fully unit tested. The rest is AppKit through `objc2`: `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit, `src/overlay/` shows one transparent, non-activating panel per display: `view.rs` (window, view, and mouse input), `session.rs` (session state and logic), `keys.rs` (keyboard commands), `actions.rs` (copying and screenshots), and `draw.rs` (drawing), `src/settings_window.rs` is the Settings window, and `src/app.rs` owns the menu bar item and the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission).
+The edge detection (`src/measure.rs`), units (`src/units.rs`), and geometry (`src/geometry.rs`) work on plain numbers and RGBA buffers with no AppKit dependency, so they are fully unit tested. Two UI tests run without the test harness, because AppKit needs the main thread: `tests/settings_layout.rs` builds the real Settings window and checks that no control overlaps another or leaves its tab, that VoiceOver can name every control, and that each tab's content matches `tests/snapshots/settings_layout.txt` (after an intended change, review the diff and run `UPDATE_SNAPSHOTS=1 cargo test --test settings_layout`); `tests/overlay_render.rs` renders kept measurements over a made-up screenshot and checks the pixels where outlines, labels, guides, lines, and circles must be, also in high contrast. The rest is AppKit through `objc2`, in the library too so the UI tests can build it (`src/main.rs` is only the command line):
+
+- `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit.
+- `src/overlay/` shows one transparent, non-activating panel per display: `mod.rs` (starting and ending a session, accessibility), `view.rs` (window, view, and mouse input), `session.rs` (session state and logic), `keys.rs` (keyboard commands), `actions.rs` (copying, contrast, and screenshots), `draw.rs` (drawing), and `loupe.rs` (the magnifier).
+- `src/settings_window/` is the Settings window (`mod.rs`), its shortcut recorder (`recorder.rs`), and its app and folder pickers (`pickers.rs`).
+- `src/app/` owns the menu bar item, the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission), and alerts (`mod.rs`), and the menu (`menu.rs`).
+- `src/updates.rs` loads Sparkle at runtime.
 
 GitHub Actions runs `cargo fmt --check`, `cargo clippy -D warnings` (debug and release), `cargo test`, a bundle build, and `cargo deny check` on every push to main and every pull request.
 

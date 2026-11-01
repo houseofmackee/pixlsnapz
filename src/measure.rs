@@ -5,83 +5,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::settings::Units;
-
-/// How pixels of one display convert to other units.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Scale {
-    /// Pixels per point (2 on Retina displays).
-    pub px_per_pt: f64,
-    /// Millimeters per pixel.
-    pub mm_per_px: f64,
-    /// Design zoom: lengths are divided by it (1 for none).
-    pub zoom: f64,
-}
-
-impl Scale {
-    /// `mm_per_px` from a manual PPI setting, or else from the display's
-    /// reported width in millimeters; 96 PPI when neither is known.
-    pub fn new(px_per_pt: f64, width_px: usize, width_mm: f64, ppi: f64, zoom_percent: u32) -> Scale {
-        let mm_per_px = if ppi > 0.0 {
-            25.4 / ppi
-        } else if width_mm > 0.0 && width_px > 0 {
-            width_mm / width_px as f64
-        } else {
-            25.4 / 96.0
-        };
-        let zoom = if zoom_percent == 0 { 1.0 } else { f64::from(zoom_percent) / 100.0 };
-        Scale { px_per_pt, mm_per_px, zoom }
-    }
-
-    /// A length of `px` pixels in `units`.
-    pub fn value(&self, px: f64, units: Units) -> f64 {
-        let v = match units {
-            Units::Pixels => px,
-            Units::Points => px / self.px_per_pt,
-            Units::Millimeters => px * self.mm_per_px,
-            Units::Inches => px * self.mm_per_px / 25.4,
-        };
-        v / self.zoom
-    }
-
-    /// A length for display: one decimal (two for inches) when needed,
-    /// with the unit's suffix when `suffix` is set.
-    pub fn format(&self, px: f64, units: Units, suffix: bool) -> String {
-        let decimals = if units == Units::Inches { 100.0 } else { 10.0 };
-        let v = (self.value(px, units) * decimals).round() / decimals;
-        // `Display` prints the shortest form: "20", "12.5", "0.5".
-        let text = if v.fract() == 0.0 { format!("{}", v as i64) } else { format!("{v}") };
-        if suffix { format!("{text} {}", units.suffix()) } else { text }
-    }
-}
-
-/// Lines every `step` from `start` up to `end` (inclusive of `start`).
-pub fn grid_lines(start: f64, end: f64, step: f64) -> Vec<f64> {
-    if step <= 0.0 || end <= start {
-        return Vec::new();
-    }
-    let n = ((end - start) / step).floor() as usize;
-    (0..=n).map(|i| start + i as f64 * step).collect()
-}
-
-/// `count` columns in `start..start + width`, with `gutter` between them and
-/// `margin` on both sides, as (left, right) pairs. Empty when they do not fit.
-pub fn columns(start: f64, width: f64, count: u32, gutter: f64, margin: f64) -> Vec<(f64, f64)> {
-    if count == 0 {
-        return Vec::new();
-    }
-    let n = f64::from(count);
-    let column = (width - 2.0 * margin - gutter * (n - 1.0)) / n;
-    if column <= 0.0 {
-        return Vec::new();
-    }
-    (0..count)
-        .map(|i| {
-            let left = start + margin + f64::from(i) * (column + gutter);
-            (left, left + column)
-        })
-        .collect()
-}
+// Units and geometry used to live here; re-exported so callers can keep
+// importing them from `measure`.
+pub use crate::geometry::*;
+pub use crate::units::*;
 
 /// An RGBA8 screenshot of one display.
 #[derive(Clone)]
@@ -265,22 +192,6 @@ pub fn distance(a: [u8; 3], b: [u8; 3]) -> u8 {
     a.iter().zip(b).map(|(x, y)| x.abs_diff(y)).max().unwrap_or(0)
 }
 
-/// Formats a length given in pixels for display, in points (divided by
-/// `scale`, with one decimal when needed) or in pixels.
-pub fn format_length(px: usize, scale: f64, in_pixels: bool) -> String {
-    if in_pixels || scale <= 0.0 {
-        return px.to_string();
-    }
-    let pt = px as f64 / scale;
-    let rounded = (pt * 10.0).round() / 10.0;
-    if rounded.fract() == 0.0 { format!("{}", rounded as i64) } else { format!("{rounded:.1}") }
-}
-
-/// "W × H" for a size in pixels.
-pub fn format_size(w: usize, h: usize, scale: f64, in_pixels: bool) -> String {
-    format!("{} × {}", format_length(w, scale, in_pixels), format_length(h, scale, in_pixels))
-}
-
 /// Stops the lines of `c` (through pixel `(x, y)`) at guides and at the
 /// edges of kept areas, so the cross measures the gap to them.
 /// `vertical` and `horizontal` are guide positions in pixels.
@@ -343,57 +254,6 @@ pub fn next_edge(c: Cross, x: usize, y: usize, dir: Direction, width: usize, hei
         Direction::Up => (x, c.top.saturating_sub(1)),
         Direction::Down => (x, c.bottom.min(height - 1)),
     }
-}
-
-/// The length of a line `dx` by `dy`.
-pub fn line_length(dx: f64, dy: f64) -> f64 {
-    dx.hypot(dy)
-}
-
-/// The angle of a line in degrees, counterclockwise from pointing right, in
-/// `-180..=180`. `dy` grows downwards, as on screen.
-pub fn line_angle(dx: f64, dy: f64) -> f64 {
-    let a = (-dy).atan2(dx).to_degrees();
-    if a <= -180.0 { a + 360.0 } else { a }
-}
-
-/// `(dx, dy)` turned to the nearest multiple of 45 degrees, keeping its length.
-pub fn snap_45(dx: f64, dy: f64) -> (f64, f64) {
-    let len = line_length(dx, dy);
-    if len == 0.0 {
-        return (0.0, 0.0);
-    }
-    let a = (line_angle(dx, dy) / 45.0).round() * 45.0;
-    let r = a.to_radians();
-    // Exact zeros for horizontal and vertical lines.
-    let clean = |v: f64| if v.abs() < 1e-9 { 0.0 } else { v };
-    (clean(len * r.cos()), clean(-len * r.sin()))
-}
-
-/// An angle for display: one decimal, without "-0".
-pub fn format_angle(a: f64) -> String {
-    let rounded = (a * 10.0).round() / 10.0;
-    let rounded = if rounded == 0.0 { 0.0 } else { rounded };
-    if rounded.fract() == 0.0 { format!("{}°", rounded as i64) } else { format!("{rounded:.1}°") }
-}
-
-/// The nearest of `candidates` within `max` of `at`, or `at`.
-pub fn snap_to(at: usize, candidates: &[usize], max: usize) -> usize {
-    candidates.iter().copied().filter(|c| c.abs_diff(at) <= max).min_by_key(|c| c.abs_diff(at)).unwrap_or(at)
-}
-
-/// The aspect ratio of a size, as small whole numbers ("16:9") when it is
-/// exact, or as a decimal ratio ("1.78:1").
-pub fn aspect_ratio(w: usize, h: usize) -> String {
-    if w == 0 || h == 0 {
-        return String::new();
-    }
-    fn gcd(a: usize, b: usize) -> usize {
-        if b == 0 { a } else { gcd(b, a % b) }
-    }
-    let g = gcd(w, h);
-    let (a, b) = (w / g, h / g);
-    if a <= 32 && b <= 32 { format!("{a}:{b}") } else { format!("{:.2}:1", w as f64 / h as f64) }
 }
 
 #[cfg(test)]
@@ -518,15 +378,6 @@ mod tests {
     }
 
     #[test]
-    fn formats_lengths() {
-        assert_eq!(format_length(30, 2.0, false), "15");
-        assert_eq!(format_length(31, 2.0, false), "15.5");
-        assert_eq!(format_length(31, 2.0, true), "31");
-        assert_eq!(format_length(10, 3.0, false), "3.3");
-        assert_eq!(format_size(30, 20, 1.0, false), "30 × 20");
-    }
-
-    #[test]
     fn color_distance() {
         assert_eq!(distance([0, 0, 0], [0, 0, 0]), 0);
         assert_eq!(distance([10, 200, 0], [12, 190, 3]), 10);
@@ -540,12 +391,6 @@ mod tests {
         let areas = [PxRect { x0: 60, y0: 30, x1: 80, y1: 50 }, PxRect { x0: 40, y0: 5, x1: 55, y1: 20 }];
         let c3 = clip_cross(c, 50, 40, &[], &[], &areas);
         assert_eq!(c3, Cross { left: 0, right: 60, top: 20, bottom: 80 });
-    }
-
-    #[test]
-    fn snaps_to_nearby_candidates() {
-        assert_eq!(snap_to(50, &[44, 53, 90], 5), 53);
-        assert_eq!(snap_to(50, &[40, 60], 5), 50);
     }
 
     #[test]
@@ -567,61 +412,5 @@ mod tests {
         assert_eq!(y, 30);
         // At the frame edge it stays put.
         assert_eq!(next_edge(f.cross(0, 0, 0), 0, 0, Direction::Left, 100, 80), (0, 0));
-    }
-
-    #[test]
-    fn line_geometry() {
-        assert_eq!(line_length(3.0, 4.0), 5.0);
-        assert_eq!(line_angle(10.0, 0.0), 0.0);
-        assert_eq!(line_angle(0.0, -10.0), 90.0);
-        assert_eq!(line_angle(-10.0, 0.0), 180.0);
-        assert_eq!(line_angle(0.0, 10.0), -90.0);
-        assert!((line_angle(10.0, -10.0) - 45.0).abs() < 1e-9);
-        assert_eq!(format_angle(-0.01), "0°");
-        assert_eq!(format_angle(32.46), "32.5°");
-        assert_eq!(format_angle(-90.0), "-90°");
-    }
-
-    #[test]
-    fn snaps_to_45_degrees() {
-        assert_eq!(snap_45(10.0, 1.0), (line_length(10.0, 1.0), 0.0));
-        assert_eq!(snap_45(1.0, -10.0), (0.0, -line_length(1.0, 10.0)));
-        let (dx, dy) = snap_45(10.0, -9.0);
-        assert!((dx - (-dy)).abs() < 1e-9 && dx > 0.0);
-        assert_eq!(snap_45(0.0, 0.0), (0.0, 0.0));
-    }
-
-    #[test]
-    fn scales_to_units() {
-        // A 3456 px wide Retina display that is 345.6 mm wide: 0.1 mm per pixel.
-        let s = Scale::new(2.0, 3456, 345.6, 0.0, 100);
-        assert_eq!(s.format(200.0, Units::Points, false), "100");
-        assert_eq!(s.format(200.0, Units::Pixels, true), "200 px");
-        assert_eq!(s.format(200.0, Units::Millimeters, true), "20 mm");
-        assert_eq!(s.format(254.0, Units::Inches, false), "1");
-        assert_eq!(s.format(127.0, Units::Inches, false), "0.5");
-        // Design zoom 200%: everything halves.
-        let z = Scale::new(2.0, 3456, 345.6, 0.0, 200);
-        assert_eq!(z.format(200.0, Units::Points, false), "50");
-        // A manual PPI wins over the reported size; unknown sizes use 96 PPI.
-        assert!((Scale::new(1.0, 1000, 500.0, 254.0, 100).mm_per_px - 0.1).abs() < 1e-12);
-        assert_eq!(Scale::new(1.0, 1000, 0.0, 0.0, 100).format(96.0, Units::Inches, false), "1");
-    }
-
-    #[test]
-    fn grids() {
-        assert_eq!(grid_lines(0.0, 20.0, 8.0), vec![0.0, 8.0, 16.0]);
-        assert!(grid_lines(0.0, 20.0, 0.0).is_empty());
-        let c = columns(0.0, 100.0, 4, 10.0, 5.0);
-        assert_eq!(c, vec![(5.0, 20.0), (30.0, 45.0), (55.0, 70.0), (80.0, 95.0)]);
-        assert!(columns(0.0, 10.0, 12, 20.0, 0.0).is_empty());
-    }
-
-    #[test]
-    fn aspect_ratios() {
-        assert_eq!(aspect_ratio(1920, 1080), "16:9");
-        assert_eq!(aspect_ratio(100, 100), "1:1");
-        assert_eq!(aspect_ratio(997, 500), "1.99:1");
-        assert_eq!(aspect_ratio(0, 5), "");
     }
 }

@@ -8,21 +8,24 @@
 mod actions;
 mod draw;
 mod keys;
+mod loupe;
 mod session;
 mod view;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
 use block2::RcBlock;
 use objc2::rc::Retained;
-use objc2::runtime::Bool;
+use objc2::runtime::{AnyObject, Bool};
 use objc2::{AllocAnyThread, MainThreadMarker, MainThreadOnly, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSBackingStoreType, NSColor, NSCursor, NSEvent, NSImage, NSScreen, NSWindowCollectionBehavior,
-    NSWindowStyleMask,
+    NSAccessibility, NSAccessibilityAnnouncementKey, NSAccessibilityAnnouncementRequestedNotification,
+    NSAccessibilityGroupRole, NSAccessibilityPostNotificationWithUserInfo, NSAccessibilityPriorityKey,
+    NSAccessibilityPriorityLevel, NSApplication, NSBackingStoreType, NSColor, NSCursor, NSEvent, NSImage, NSScreen,
+    NSWindowCollectionBehavior, NSWindowStyleMask, NSWorkspace,
 };
-use objc2_foundation::{NSNumber, NSPoint, NSRect, NSSize, NSString};
+use objc2_foundation::{NSDictionary, NSNumber, NSPoint, NSRect, NSSize, NSString};
 
 use crate::capture::{self, Shot};
 use crate::items::{Display, SavedSession};
@@ -32,6 +35,7 @@ use crate::settings::Settings;
 use actions::*;
 use draw::*;
 use keys::*;
+use loupe::*;
 use session::*;
 use view::*;
 
@@ -127,6 +131,58 @@ fn update(f: impl FnOnce(&mut Session)) {
     let ran = SESSION.with(|s| s.borrow_mut().as_mut().map(f).is_some());
     if ran {
         redraw_all();
+        describe_hover();
+    }
+}
+
+thread_local! {
+    /// Increase Contrast or Reduce Transparency is on: thicker lines and
+    /// opaque, outlined labels.
+    static HIGH_CONTRAST: Cell<bool> = const { Cell::new(false) };
+}
+
+pub(super) fn high_contrast() -> bool {
+    HIGH_CONTRAST.with(Cell::get)
+}
+
+/// A line width, doubled in high contrast.
+pub(super) fn lw(width: f64) -> f64 {
+    if high_contrast() { width * 2.0 } else { width }
+}
+
+/// Has VoiceOver (or another assistive app) read `text` out.
+pub(super) fn announce(text: &str) {
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let app = NSApplication::sharedApplication(mtm);
+    let message = NSString::from_str(&crate::units::spoken(text));
+    let priority = NSNumber::new_isize(NSAccessibilityPriorityLevel::High.0);
+    // SAFETY: static constants; the dictionary holds an NSString and an NSNumber.
+    unsafe {
+        let keys = [NSAccessibilityAnnouncementKey, NSAccessibilityPriorityKey];
+        let values: [&AnyObject; 2] = [message.as_ref(), priority.as_ref()];
+        let info = NSDictionary::from_slices(&keys, &values);
+        NSAccessibilityPostNotificationWithUserInfo(
+            &app,
+            NSAccessibilityAnnouncementRequestedNotification,
+            Some(&info),
+        );
+    }
+}
+
+/// Keeps the active overlay's accessibility value at the measurement under
+/// the pointer, so VoiceOver can read it on request.
+fn describe_hover() {
+    let found = SESSION.with(|s| {
+        let s = s.borrow();
+        let s = s.as_ref().filter(|s| !s.kept)?;
+        let (x, y) = s.hover_px()?;
+        let c = s.cross_at(s.active, x, y);
+        let text = s.cross_text(&c, s.settings.axes, &s.overlays[s.active].measure);
+        Some((s.overlays[s.active].view.clone(), crate::units::spoken(&text)))
+    });
+    if let Some((view, text)) = found {
+        // SAFETY: an NSString value.
+        unsafe { view.setAccessibilityValue(Some(&NSString::from_str(&text))) };
     }
 }
 
@@ -144,6 +200,49 @@ pub enum StartError {
     Capture(anyhow::Error),
 }
 
+/// The overlay window and view for one display, covering `frame` (screen
+/// points), over the screenshot `shot`.
+fn build_overlay(
+    index: usize,
+    frame: NSRect,
+    safe_bottom: f64,
+    shot: Shot,
+    settings: &Settings,
+    mtm: MainThreadMarker,
+) -> Overlay {
+    // A non-activating panel takes key events without activating the
+    // app, so the app you measure stays frontmost.
+    // SAFETY: NSWindow's designated initializer.
+    let window: Retained<OverlayWindow> = unsafe {
+        msg_send![OverlayWindow::alloc(mtm), initWithContentRect: frame,
+            styleMask: NSWindowStyleMask::Borderless | NSWindowStyleMask::NonactivatingPanel, backing: NSBackingStoreType::Buffered, defer: false]
+    };
+    // SAFETY: the session owns the window.
+    unsafe { window.setReleasedWhenClosed(false) };
+    window.setHidesOnDeactivate(false);
+    window.setLevel(LEVEL);
+    window.setOpaque(false);
+    window.setBackgroundColor(Some(&NSColor::clearColor()));
+    window.setHasShadow(false);
+    window.setAcceptsMouseMovedEvents(true);
+    // Without this, clicks on fully transparent areas pass through.
+    window.setIgnoresMouseEvents(false);
+    window.setCollectionBehavior(
+        NSWindowCollectionBehavior::CanJoinAllSpaces
+            | NSWindowCollectionBehavior::FullScreenAuxiliary
+            | NSWindowCollectionBehavior::Stationary
+            | NSWindowCollectionBehavior::IgnoresCycle,
+    );
+    window.setFrame_display(frame, false);
+    let size = frame.size;
+    let view = OverlayView::new(index, NSRect::new(NSPoint::new(0.0, 0.0), size), mtm);
+    window.setContentView(Some(&view));
+    let scale = shot.frame.width as f64 / size.width;
+    let image = NSImage::initWithCGImage_size(NSImage::alloc(), &shot.image, size);
+    let measure = Scale::new(scale, shot.frame.width, shot.width_mm, settings.screen_ppi, settings.design_zoom);
+    Overlay { window, view, shot, image, scale, measure, size, safe_bottom, smoothed: std::cell::OnceCell::new() }
+}
+
 /// Starts measuring on every display (or ends a running session).
 pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
     if is_measuring() {
@@ -156,6 +255,10 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
     // Measurements kept on screen come back into the new session.
     let kept = take_kept();
     let started = Instant::now();
+    let workspace = NSWorkspace::sharedWorkspace();
+    let contrast = workspace.accessibilityDisplayShouldIncreaseContrast()
+        || workspace.accessibilityDisplayShouldReduceTransparency();
+    HIGH_CONTRAST.with(|h| h.set(contrast));
     let shots = capture::capture_all().map_err(StartError::Capture)?;
     let settings = Settings::load();
 
@@ -169,50 +272,10 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
             continue;
         };
         let frame = screen.frame();
-        let index = overlays.len();
-        // A non-activating panel takes key events without activating the
-        // app, so the app you measure stays frontmost.
-        // SAFETY: NSWindow's designated initializer.
-        let window: Retained<OverlayWindow> = unsafe {
-            msg_send![OverlayWindow::alloc(mtm), initWithContentRect: frame,
-                styleMask: NSWindowStyleMask::Borderless | NSWindowStyleMask::NonactivatingPanel, backing: NSBackingStoreType::Buffered, defer: false]
-        };
-        // SAFETY: the session owns the window.
-        unsafe { window.setReleasedWhenClosed(false) };
-        window.setHidesOnDeactivate(false);
-        window.setLevel(LEVEL);
-        window.setOpaque(false);
-        window.setBackgroundColor(Some(&NSColor::clearColor()));
-        window.setHasShadow(false);
-        window.setAcceptsMouseMovedEvents(true);
-        // Without this, clicks on fully transparent areas pass through.
-        window.setIgnoresMouseEvents(false);
-        window.setCollectionBehavior(
-            NSWindowCollectionBehavior::CanJoinAllSpaces
-                | NSWindowCollectionBehavior::FullScreenAuxiliary
-                | NSWindowCollectionBehavior::Stationary
-                | NSWindowCollectionBehavior::IgnoresCycle,
-        );
-        window.setFrame_display(frame, false);
-        let size = frame.size;
-        let view = OverlayView::new(index, NSRect::new(NSPoint::new(0.0, 0.0), size), mtm);
-        window.setContentView(Some(&view));
-        let scale = shot.frame.width as f64 / size.width;
-        let image = NSImage::initWithCGImage_size(NSImage::alloc(), &shot.image, size);
-        let measure = Scale::new(scale, shot.frame.width, shot.width_mm, settings.screen_ppi, settings.design_zoom);
         let visible = screen.visibleFrame();
-        let safe_bottom = size.height - (visible.origin.y - frame.origin.y);
-        overlays.push(Overlay {
-            window,
-            view,
-            shot,
-            image,
-            scale,
-            measure,
-            size,
-            safe_bottom,
-            smoothed: std::cell::OnceCell::new(),
-        });
+        // Where the Dock begins, in view points from the top.
+        let safe_bottom = frame.size.height - (visible.origin.y - frame.origin.y);
+        overlays.push(build_overlay(overlays.len(), frame, safe_bottom, shot, &settings, mtm));
     }
     if overlays.is_empty() {
         return Err(StartError::Capture(anyhow::anyhow!("no screen matched a captured display")));
@@ -232,23 +295,8 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
         .map(|o| Display { id: o.shot.display_id, width: o.shot.frame.width, height: o.shot.frame.height })
         .collect();
     SESSION.with(|s| {
-        *s.borrow_mut() = Some(Session {
-            overlays,
-            settings,
-            active,
-            hover: Some(hover),
-            drag: None,
-            moving: false,
-            shift: false,
-            items: kept.map(|k| k.place(&displays)).unwrap_or_default(),
-            toast: None,
-            tool: Tool::Area,
-            exporting: false,
-            scroll: 0.0,
-            settings_dirty: false,
-            contrast: None,
-            kept: false,
-        })
+        let items = kept.map(|k| k.place(&displays)).unwrap_or_default();
+        *s.borrow_mut() = Some(Session::new(overlays, settings, active, Some(hover), items));
     });
 
     let app = NSApplication::sharedApplication(mtm);
@@ -260,8 +308,20 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
             window.orderFrontRegardless();
         }
     }
+    for (_, view) in &windows {
+        view.setAccessibilityElement(true);
+        // SAFETY: a static constant.
+        view.setAccessibilityRole(Some(unsafe { NSAccessibilityGroupRole }));
+        view.setAccessibilityLabel(Some(&NSString::from_str("PixlSnapz measuring")));
+        view.setAccessibilityHelp(Some(&NSString::from_str(
+            "Move the pointer to measure the distances to the nearest edges; drag to measure an area. \
+             Command-C copies the measurement, Escape finishes.",
+        )));
+    }
     blank_cursor().set();
     NSCursor::hide();
+    announce("Measuring");
+    describe_hover();
     tracing::debug!(
         "overlay ready in {:?}; key: {}, app active: {}",
         started.elapsed(),
@@ -317,4 +377,36 @@ fn display_id(screen: &NSScreen) -> Option<u32> {
     let key = NSString::from_str("NSScreenNumber");
     let value = screen.deviceDescription().objectForKey(&key)?;
     value.downcast::<NSNumber>().ok().map(|n| n.unsignedIntValue())
+}
+
+/// For the UI tests: draws `items` the way the overlay keeps them (the
+/// screen behind, nothing interactive) over `frame`, one point per pixel
+/// of `frame`, and returns the drawn pixels.
+#[doc(hidden)]
+pub fn render_for_tests(
+    frame: crate::measure::Frame,
+    items: Vec<crate::items::Item>,
+    settings: Settings,
+    high_contrast: bool,
+    mtm: MainThreadMarker,
+) -> Option<crate::measure::Frame> {
+    HIGH_CONTRAST.with(|h| h.set(high_contrast));
+    let shot = capture::shot_from_frame(1, frame)?;
+    let size = NSSize::new(shot.frame.width as f64, shot.frame.height as f64);
+    let rect = NSRect::new(NSPoint::new(0.0, 0.0), size);
+    let overlay = build_overlay(0, rect, size.height, shot, &settings, mtm);
+    let view = overlay.view.clone();
+    let items = items.into_iter().map(|item| (0, item)).collect();
+    let mut session = Session::new(vec![overlay], settings, 0, None, items);
+    session.exporting = true;
+    SESSION.with(|s| *s.borrow_mut() = Some(session));
+    let rep = view.bitmapImageRepForCachingDisplayInRect(rect);
+    if let Some(rep) = &rep {
+        view.cacheDisplayInRect_toBitmapImageRep(rect, rep);
+    }
+    // Not end(): nothing to save, and the cursor was never hidden.
+    SESSION.with(|s| s.borrow_mut().take());
+    HIGH_CONTRAST.with(|h| h.set(false));
+    let image = rep?.CGImage()?;
+    capture::to_frame(&image).ok()
 }
