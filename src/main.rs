@@ -7,6 +7,7 @@ mod hotkeys;
 mod login_item;
 mod overlay;
 mod settings_window;
+mod updates;
 
 use std::process::ExitCode;
 

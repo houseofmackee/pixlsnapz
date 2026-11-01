@@ -13,8 +13,13 @@ use objc2_foundation::{NSPoint, NSRect, NSSize, NSTimer};
 use crate::capture::Shot;
 use crate::items::{Display, Item, SavedItem, SavedSession};
 use crate::measure::{
-    Cross, Direction, PxRect, Scale, clip_cross, columns, format_angle, line_angle, line_length, next_edge, snap_to,
+    Cross, Direction, Frame, PxRect, Scale, clip_cross, columns, format_angle, line_angle, line_length, next_edge,
+    snap_to,
 };
+
+/// The least tolerance smooth edges use: neighboring pixels of a blurred
+/// screen differ a little even inside one surface.
+const SMOOTH_MIN_TOLERANCE: u8 = 8;
 use crate::settings::{Axes, Settings, Units};
 
 /// What dragging measures.
@@ -46,9 +51,19 @@ pub(super) struct Overlay {
     pub(super) measure: Scale,
     /// View size in points.
     pub(super) size: NSSize,
+    /// Where the Dock (or the bottom of the screen) begins, in view points
+    /// from the top.
+    pub(super) safe_bottom: f64,
+    /// The screenshot smoothed for smooth edges (N), made when first needed.
+    pub(super) smoothed: std::cell::OnceCell<Frame>,
 }
 
 impl Overlay {
+    /// The frame edges are found in.
+    pub(super) fn edges(&self, smooth: bool) -> &Frame {
+        if smooth { self.smoothed.get_or_init(|| self.shot.frame.blurred()) } else { &self.shot.frame }
+    }
+
     pub(super) fn px(&self, p: NSPoint) -> (usize, usize) {
         let f = &self.shot.frame;
         let x = (p.x * self.scale).floor().clamp(0.0, (f.width - 1) as f64) as usize;
@@ -186,9 +201,19 @@ impl Session {
 
     /// The cross through pixel `(x, y)`, stopped at guides and kept areas.
     pub(super) fn cross_at(&self, index: usize, x: usize, y: usize) -> Cross {
-        let o = &self.overlays[index];
         let (v, h) = self.guides(index);
-        clip_cross(o.shot.frame.cross(x, y, self.settings.tolerance), x, y, &v, &h, &self.areas(index))
+        clip_cross(self.raw_cross(index, x, y), x, y, &v, &h, &self.areas(index))
+    }
+
+    /// The cross through `(x, y)` as the screen alone has it.
+    pub(super) fn raw_cross(&self, index: usize, x: usize, y: usize) -> Cross {
+        let o = &self.overlays[index];
+        let tolerance = self.settings.tolerance;
+        if self.settings.smooth_edges {
+            o.edges(true).cross_local(x, y, tolerance.max(SMOOTH_MIN_TOLERANCE))
+        } else {
+            o.shot.frame.cross(x, y, tolerance)
+        }
     }
 
     pub(super) fn hover_px(&self) -> Option<(usize, usize)> {
@@ -209,8 +234,11 @@ impl Session {
             Item::Circle { cx: start.x * o.scale, cy: start.y * o.scale, r }
         } else {
             let r = o.rect_px(start, end);
-            let r =
-                if self.settings.snap_areas && !no_snap { o.shot.frame.snap(r, self.settings.tolerance) } else { r };
+            let r = if self.settings.snap_areas && !no_snap {
+                o.edges(self.settings.smooth_edges).snap(r, self.settings.tolerance)
+            } else {
+                r
+            };
             if r.width() == 0 || r.height() == 0 {
                 return;
             }
@@ -222,7 +250,7 @@ impl Session {
     pub(super) fn add_guide(&mut self, vertical: bool) {
         let Some((x, y)) = self.hover_px() else { return };
         let o = &self.overlays[self.active];
-        let c = o.shot.frame.cross(x, y, self.settings.tolerance);
+        let c = self.raw_cross(self.active, x, y);
         let max = (GUIDE_SNAP * o.scale) as usize;
         let item = if vertical {
             Item::VerticalGuide { x: snap_to(x, &[c.left, c.right], max) }

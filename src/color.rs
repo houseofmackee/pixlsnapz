@@ -43,6 +43,18 @@ impl ColorFormat {
         ColorFormat::ALL[(i + 1) % ColorFormat::ALL.len()]
     }
 
+    /// A compact form for the loupe: the code formats are too long to show
+    /// in full, so they show just their three values.
+    pub fn short(self, rgb: [u8; 3]) -> String {
+        match self {
+            ColorFormat::SwiftUI | ColorFormat::AppKit => {
+                let unit = |v: u8| format!("{:.3}", f64::from(v) / 255.0);
+                format!("{} {}, {}, {}", self.name(), unit(rgb[0]), unit(rgb[1]), unit(rgb[2]))
+            }
+            _ => self.format(rgb),
+        }
+    }
+
     pub fn format(self, [r, g, b]: [u8; 3]) -> String {
         let unit = |v: u8| {
             let s = format!("{:.3}", f64::from(v) / 255.0);
@@ -268,6 +280,12 @@ mod tests {
         assert_eq!(ColorFormat::Hsl.format(c), "hsl(210, 40%, 17%)");
         assert_eq!(ColorFormat::SwiftUI.format(c), "Color(red: 0.102, green: 0.169, blue: 0.235)");
         assert_eq!(ColorFormat::AppKit.format([255, 0, 0]), "NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1)");
+    }
+
+    #[test]
+    fn short_formats() {
+        assert_eq!(ColorFormat::SwiftUI.short([26, 43, 60]), "SwiftUI 0.102, 0.169, 0.235");
+        assert_eq!(ColorFormat::Rgb.short([26, 43, 60]), "rgb(26, 43, 60)");
     }
 
     #[test]

@@ -17,7 +17,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
@@ -28,6 +28,16 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>MIT OR Apache-2.0</string>
+	<!-- Sparkle: the feed is the latest regular (not pre-release) release's
+	     appcast.xml; updates and the feed must be signed with this key. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/houseofmackee/pixlsnapz/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>rFORtYFe/9pecECAZwWsGaIIJF7IyZm21sGfF9k0H68=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>PixlSnapz looks at the pixels on your screen to find the edges of what you measure. Nothing is saved or sent anywhere.</string>
 </dict>

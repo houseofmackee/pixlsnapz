@@ -10,7 +10,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
 
-use crate::color::{ColorFormat, Vision, contrast_text};
+use crate::color::{Vision, contrast_text};
 use crate::items::Item;
 use crate::measure::{Cross, PxRect, aspect_ratio, columns, format_length, grid_lines, line_angle, line_length};
 use crate::settings::{Axes, Grid};
@@ -440,13 +440,9 @@ pub(super) fn draw_loupe(s: &Session, o: &Overlay, x: usize, y: usize, cursor: N
     border.stroke();
 
     // The color in the chosen format, and where the pointer is.
-    let format = match s.settings.color_format {
-        // The long code formats would not fit; they show as hex here.
-        ColorFormat::SwiftUI | ColorFormat::AppKit => ColorFormat::Hex,
-        f => f,
-    };
     let at = |px: usize| format_length(px, o.scale, s.in_pixels());
-    let mut text = format!("{}   {}, {}", format.format(o.shot.frame.pixel(x, y)), at(x), at(y));
+    let color_text = s.settings.color_format.short(o.shot.frame.pixel(x, y));
+    let mut text = format!("{color_text}   {}, {}", at(x), at(y));
     if s.settings.vision != Vision::Normal {
         let name = s.settings.vision.name();
         text.push_str("   ");
@@ -459,7 +455,7 @@ pub(super) const HINTS: [&str; 3] = [
     "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  \
      Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge",
     "X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  \
-     ⇧Z vision  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast",
+     ⇧Z vision  ·  N smooth edges  ·  D ⇧D design zoom  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast",
     "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  \
      R restore  ·  ? hints  ·  Esc done",
 ];
@@ -522,7 +518,8 @@ pub(super) fn draw(index: usize) {
         if s.settings.show_hints {
             for (row, hint) in HINTS.iter().enumerate() {
                 let w = pill_size(hint, 11.0).width;
-                let y = o.size.height - 80.0 + row as f64 * 22.0;
+                // Above the Dock, which covers the bottom of the screen.
+                let y = o.safe_bottom - 8.0 - (HINTS.len() - row) as f64 * 22.0;
                 pill(hint, NSPoint::new((o.size.width - w) / 2.0, y), o.size, 11.0, &dark());
             }
         }

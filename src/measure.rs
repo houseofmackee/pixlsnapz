@@ -174,6 +174,49 @@ impl Frame {
         Cross { left, right, top, bottom }
     }
 
+    /// A copy averaged over each pixel's 3 by 3 neighborhood, which evens
+    /// out the noise in photos and compressed images.
+    pub fn blurred(&self) -> Frame {
+        let (w, h) = (self.width, self.height);
+        let mut pixels = vec![0u8; w * h * 4];
+        for y in 0..h {
+            for x in 0..w {
+                let mut sum = [0u32; 3];
+                let mut n = 0;
+                for ny in y.saturating_sub(1)..(y + 2).min(h) {
+                    for nx in x.saturating_sub(1)..(x + 2).min(w) {
+                        let p = self.pixel(nx, ny);
+                        for c in 0..3 {
+                            sum[c] += u32::from(p[c]);
+                        }
+                        n += 1;
+                    }
+                }
+                let i = (y * w + x) * 4;
+                for c in 0..3 {
+                    pixels[i + c] = ((sum[c] + n / 2) / n) as u8;
+                }
+                pixels[i + 3] = 255;
+            }
+        }
+        Frame { width: w, height: h, pixels }
+    }
+
+    /// Like [`Frame::cross`], but an edge is where neighboring pixels
+    /// differ by more than `tolerance`, so smooth gradients do not stop
+    /// the lines. Meant for a [`Frame::blurred`] frame.
+    pub fn cross_local(&self, x: usize, y: usize, tolerance: u8) -> Cross {
+        let x = x.min(self.width - 1);
+        let y = y.min(self.height - 1);
+        let step =
+            |a: (usize, usize), b: (usize, usize)| distance(self.pixel(a.0, a.1), self.pixel(b.0, b.1)) > tolerance;
+        let left = (0..x).rev().find(|&i| step((i, y), (i + 1, y))).map_or(0, |i| i + 1);
+        let right = (x + 1..self.width).find(|&i| step((i, y), (i - 1, y))).unwrap_or(self.width);
+        let top = (0..y).rev().find(|&j| step((x, j), (x, j + 1))).map_or(0, |j| j + 1);
+        let bottom = (y + 1..self.height).find(|&j| step((x, j), (x, j - 1))).unwrap_or(self.height);
+        Cross { left, right, top, bottom }
+    }
+
     /// Shrinks `r` to the bounding box of whatever stands out from its
     /// background (the most common color on its border). Returns `r`
     /// unchanged when nothing does.
@@ -409,6 +452,39 @@ mod tests {
         f.fill(rect(30, 0, 50, 10), [250, 250, 250]);
         assert_eq!(f.cross(5, 5, 0).right, 30);
         assert_eq!(f.cross(5, 5, 8).right, 50);
+    }
+
+    #[test]
+    fn smooth_mode_follows_gradients() {
+        // A horizontal gradient (2 levels per pixel) ending at a dark bar.
+        let mut f = Frame::solid(100, 10, [0, 0, 0]);
+        for x in 0..80 {
+            f.fill(rect(x, 0, x + 1, 10), [(40 + 2 * x) as u8; 3]);
+        }
+        // Comparing with the start color stops after a few pixels...
+        assert!(f.cross(10, 5, 8).right < 20);
+        // ...comparing neighbors runs to the bar.
+        assert_eq!(f.cross_local(10, 5, 8).right, 80);
+    }
+
+    #[test]
+    fn smooth_mode_ignores_speckles() {
+        let mut f = Frame::solid(60, 9, WHITE);
+        // Single-pixel noise, and a real edge at x = 50.
+        for x in [12, 23, 31, 44] {
+            f.fill(rect(x, 4, x + 1, 5), [215, 215, 215]);
+        }
+        f.fill(rect(50, 0, 60, 9), BLUE);
+        assert_eq!(f.cross(5, 4, 8).right, 12);
+        let b = f.blurred();
+        assert_eq!(b.cross_local(5, 4, 8).right, 49);
+    }
+
+    #[test]
+    fn blur_keeps_flat_areas() {
+        let f = Frame::solid(5, 5, [10, 20, 30]);
+        assert_eq!(f.blurred().pixel(0, 0), [10, 20, 30]);
+        assert_eq!(f.blurred().pixel(2, 2), [10, 20, 30]);
     }
 
     #[test]

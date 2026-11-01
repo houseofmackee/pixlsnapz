@@ -2,7 +2,7 @@
 
 Measure anything on your screen. PixlSnapz is a native macOS screen ruler written in Rust, inspired by [PixelSnap](https://pixelsnap.com): press a shortcut, move the pointer, and see the distances to the nearest edges in every direction. Drag over a button, an icon, or a block of text and the box snaps to its exact bounds.
 
-Everything happens on your Mac: no accounts, no telemetry, and no network access at all.
+Everything happens on your Mac: no accounts and no telemetry. The only network access is checking for updates, which you can turn off.
 
 Apple silicon, macOS 14 Sonoma or later.
 
@@ -24,11 +24,12 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Freeze screen**: measure a still copy of the screen, so menus and animations stay put
 - **Contrast checker**: press K on one color and K again on another to copy the WCAG contrast ratio and grade, such as `4.54:1  AA`; a live readout with both swatches follows the pointer in between
 - **Units**: points, pixels, millimeters, or inches (real sizes from what each display reports, or a PPI you set), optional unit labels, and the aspect ratio of areas (`16:9`)
-- **Design zoom**: measure a design shown at 200% (or 25% to 400%) in its own units
+- **Design zoom**: measure a design shown at 200% (or 25% to 400%) in its own units; D and ⇧D change it while measuring
 - **Grids**: press O for a square grid or a column layout grid (columns, gutter, and margin are adjustable), over the whole screen or inside the last area
 - **Keep on screen**: press B to stop measuring but leave the measurements up while you keep working; clicks go through them, and the next measuring session picks them up again
 - **Settings window** with every option in tabs, and a shortcut recorder
 - **Adjustable edge tolerance** for shadows, gradients, and low-contrast edges: scroll, or press [ and ]
+- **Smooth edges** (N) for photos, compressed images, and gradients
 - **Restore** the measurements and guides of the previous session (R), even after a restart
 - Multiple displays with different scales, including over full-screen apps
 - Six guide colors, launch at login, and a customizable global shortcut that can be turned off in chosen apps (such as a design tool that uses it), from the menu bar icon's menu or Settings
@@ -38,6 +39,10 @@ Apple silicon, macOS 14 Sonoma or later.
 Download `PixlSnapz-<version>-arm64.dmg` from the [releases page](https://github.com/houseofmackee/pixlsnapz/releases/latest), open it, and drag PixlSnapz into Applications. Check it against `SHA256SUMS.txt` from the same release if you like (`shasum -a 256 -c --ignore-missing SHA256SUMS.txt`).
 
 PixlSnapz lives in the menu bar. The first time you measure, macOS asks to allow **Screen Recording**: PixlSnapz looks at the pixels on screen to find edges. Turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen PixlSnapz. Nothing is saved or sent anywhere, except screenshots you save yourself.
+
+## Updates
+
+From 0.1.1 on, PixlSnapz updates itself with [Sparkle](https://sparkle-project.org): choose **Check for Updates…** in the menu bar icon's menu (it reads **Update to PixlSnapz X…** when a newer version was found), and turn automatic checks on or off in Settings > General. Updates are signed with PixlSnapz's own EdDSA key and the same Developer ID, so they install without warnings and keep the Screen Recording permission. New releases are published as pre-releases first; the update feed is the latest regular release's `appcast.xml`. Checking for updates contacts github.com and nothing else.
 
 ## Usage
 
@@ -78,6 +83,8 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | B | Keep the measurements on screen and stop measuring |
 | S | Snapping on or off |
 | Scroll, [ and ] | Lower or raise the edge tolerance |
+| N | Smooth edges on or off (photos and gradients) |
+| D and ⇧D | Design zoom up and down |
 | ⌫, ⌘Z | Remove the last measurement or guide |
 | C | Clear everything |
 | R | Restore the previous session, also after a restart |
@@ -115,6 +122,7 @@ grid_columns = 12
 grid_gutter = 20.0           # points
 grid_margin = 0.0            # points
 stamp_screenshots = true     # draw the measurements into screenshots
+smooth_edges = false         # find edges on a smoothed screen (photos, gradients)
 vision = "normal"            # or "protanopia", "deuteranopia", "tritanopia", "achromatopsia"
 disabled_apps = []           # bundle identifiers, such as ["com.figma.Desktop"]
 ```
@@ -155,7 +163,7 @@ Releases are built and published by GitHub Actions. Move the Unreleased notes in
 git tag vX.Y.Z && git push origin main vX.Y.Z
 ```
 
-`.github/workflows/release.yml` checks the tag matches `Cargo.toml`, signs with the Developer ID from the repository secrets `DEVELOPER_ID_P12_BASE64` and `DEVELOPER_ID_P12_PASSWORD`, notarizes the app and the DMG with the App Store Connect API key (`NOTARY_API_KEY_BASE64` secret; `APPLE_TEAM_ID`, `NOTARY_KEY_ID`, and `NOTARY_ISSUER_ID` variables), refuses to publish anything Gatekeeper would block, and publishes the DMG, zip, and `SHA256SUMS.txt` as a pre-release. Mark it as a regular release once the checks in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) are done.
+`.github/workflows/release.yml` checks the tag matches `Cargo.toml`, signs with the Developer ID from the repository secrets `DEVELOPER_ID_P12_BASE64` and `DEVELOPER_ID_P12_PASSWORD`, notarizes the app and the DMG with the App Store Connect API key (`NOTARY_API_KEY_BASE64` secret; `APPLE_TEAM_ID`, `NOTARY_KEY_ID`, and `NOTARY_ISSUER_ID` variables), refuses to publish anything Gatekeeper would block, writes the update feed `appcast.xml` signed with the `SPARKLE_PRIVATE_KEY` secret (the EdDSA key in the login Keychain, account `pixlsnapz`; its public half is `SUPublicEDKey` in `macos/Info.plist`), and publishes the DMG, zip, `SHA256SUMS.txt`, and `appcast.xml` as a pre-release. Mark it as a regular release once the checks in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) are done.
 
 ## License
 

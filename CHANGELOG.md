@@ -7,6 +7,29 @@ the GitHub release shows.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-01
+
+### Added
+
+- PixlSnapz updates itself: Check for Updates… in the menu bar icon's
+  menu, and automatic checks in Settings > General. Updates are offered
+  once a release is marked as a regular release. 0.1.0 cannot update
+  itself, so download this version once by hand.
+- Smooth edges (N, or Settings > Measuring) for photos, compressed images,
+  and gradients: edges are found on a smoothed copy of the screen, between
+  neighboring pixels, so noise and gentle color changes no longer stop the
+  lines.
+- D and ⇧D change the design zoom while measuring, with more steps (33%,
+  67%, 75%, 125%, and 150%).
+
+### Fixed
+
+- The shortcut hints sit above the Dock instead of under it.
+- The loupe shows SwiftUI and AppKit colors as their values instead of
+  falling back to hex, and Recent Colors keeps short hex titles (clicking
+  one still copies the chosen format).
+- The Add App… and Clear buttons in Settings no longer touch.
+
 ## [0.1.0] - 2026-11-01
 
 First release of PixlSnapz, a screen ruler for Apple silicon Macs
@@ -51,5 +74,6 @@ First release of PixlSnapz, a screen ruler for Apple silicon Macs
 - Freeze screen, aspect ratios, multiple displays, launch at login, and
   `pixlsnapz measure` and `pixlsnapz settings` for scripts and launchers.
 
-[Unreleased]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/houseofmackee/pixlsnapz/releases/tag/v0.1.0

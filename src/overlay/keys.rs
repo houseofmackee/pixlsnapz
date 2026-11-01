@@ -119,6 +119,16 @@ pub(super) fn key_down(event: &NSEvent) {
             s.save_settings();
         }),
         (false, "m") => toggle_setting("Measurements in screenshots", |st| &mut st.stamp_screenshots),
+        (false, "n") => toggle_setting("Smooth edges (photos and gradients)", |st| &mut st.smooth_edges),
+        (false, "d") => update(|s| {
+            s.settings.step_design_zoom(!shift);
+            let zoom = s.settings.design_zoom;
+            for o in &mut s.overlays {
+                o.measure.zoom = f64::from(zoom) / 100.0;
+            }
+            s.toast(format!("Design zoom: {zoom}%"));
+            s.save_settings();
+        }),
         (false, "x") => update(|s| {
             s.settings.axes = s.settings.axes.next();
             let name = s.settings.axes.name();

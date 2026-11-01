@@ -200,7 +200,19 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
         let scale = shot.frame.width as f64 / size.width;
         let image = NSImage::initWithCGImage_size(NSImage::alloc(), &shot.image, size);
         let measure = Scale::new(scale, shot.frame.width, shot.width_mm, settings.screen_ppi, settings.design_zoom);
-        overlays.push(Overlay { window, view, shot, image, scale, measure, size });
+        let visible = screen.visibleFrame();
+        let safe_bottom = size.height - (visible.origin.y - frame.origin.y);
+        overlays.push(Overlay {
+            window,
+            view,
+            shot,
+            image,
+            scale,
+            measure,
+            size,
+            safe_bottom,
+            smoothed: std::cell::OnceCell::new(),
+        });
     }
     if overlays.is_empty() {
         return Err(StartError::Capture(anyhow::anyhow!("no screen matched a captured display")));

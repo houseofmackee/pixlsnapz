@@ -98,6 +98,30 @@ validate_ticket() {
     xcrun stapler validate "$1"
 }
 
+# Sparkle (updates), downloaded once into target/sparkle and checked against
+# its pinned checksum. Prints the directory.
+SPARKLE_VERSION=2.10.0
+SPARKLE_SHA256=c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c
+
+sparkle_dir() {
+    dir="target/sparkle/$SPARKLE_VERSION"
+    if [ ! -d "$dir/Sparkle.framework" ]; then
+        mkdir -p target/sparkle
+        archive="target/sparkle/Sparkle-$SPARKLE_VERSION.tar.xz"
+        curl -sSfL -o "$archive" \
+            "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+        if [ "$(shasum -a 256 "$archive" | cut -d' ' -f1)" != "$SPARKLE_SHA256" ]; then
+            rm -f "$archive"
+            echo "error: Sparkle $SPARKLE_VERSION does not match its pinned checksum" >&2
+            return 1
+        fi
+        rm -rf "$dir.partial" && mkdir -p "$dir.partial"
+        tar -xf "$archive" -C "$dir.partial"
+        mv "$dir.partial" "$dir"
+    fi
+    echo "$dir"
+}
+
 # sign_with_identity PATH: the hardened runtime, plus a secure timestamp for
 # a Developer ID (Apple's timestamp service only accepts its certificates).
 sign_with_identity() {

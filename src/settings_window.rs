@@ -98,6 +98,8 @@ struct Controls {
     disabled_apps: Retained<NSTextField>,
     vision: Retained<NSPopUpButton>,
     stamp: Retained<NSButton>,
+    check_updates: Retained<NSButton>,
+    smooth: Retained<NSButton>,
 }
 
 struct SettingsWindow {
@@ -291,6 +293,8 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
         disabled_apps: NSTextField::labelWithString(&ns(""), mtm),
         vision: popup(&visions, t, mtm),
         stamp: checkbox("Draw the measurements into screenshots", t, mtm),
+        check_updates: checkbox("Check for updates automatically", t, mtm),
+        smooth: checkbox("Smooth edges for photos and gradients (N)", t, mtm),
     };
     c.ppi.setPlaceholderString(Some(&ns("Automatic")));
     c.folder.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingMiddle);
@@ -300,12 +304,13 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     l.row("Measure shortcut:", &c.shortcut, 220.0);
     l.plain(&c.login, 280.0);
     l.plain(&c.hints, 280.0);
+    l.plain(&c.check_updates, 280.0);
     l.row("Shortcut off in:", &c.disabled_apps, 130.0);
     let add = button("Add App…", sel!(addApp:), t, mtm);
     add.setFrame(rect(LABEL_WIDTH + 165.0, l.top, 90.0, 30.0));
     l.view.addSubview(&add);
     let clear = button("Clear", sel!(clearApps:), t, mtm);
-    clear.setFrame(rect(LABEL_WIDTH + 255.0, l.top, 70.0, 30.0));
+    clear.setFrame(rect(LABEL_WIDTH + 262.0, l.top, 70.0, 30.0));
     l.view.addSubview(&clear);
     let open = button("Open Settings File", sel!(openFile:), t, mtm);
     open.setFrame(rect(content.width - 190.0, 14.0, 170.0, 30.0));
@@ -320,6 +325,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     c.tolerance_value.setFrame(rect(LABEL_WIDTH + 240.0, l.top + 6.0, 90.0, 18.0));
     l.view.addSubview(&c.tolerance_value);
     l.plain(&c.snap, 280.0);
+    l.plain(&c.smooth, 300.0);
     l.row("Measure:", &c.axes, 160.0);
     l.plain(&c.aspect, 280.0);
     l.plain(&c.freeze, 280.0);
@@ -396,6 +402,10 @@ pub fn refresh() {
         c.disabled_apps.setToolTip(Some(&ns(&s.disabled_apps.join("\n"))));
         c.vision.selectItemAtIndex(Vision::ALL.iter().position(|v| *v == s.vision).unwrap_or(0) as isize);
         set_check(&c.stamp, s.stamp_screenshots);
+        set_check(&c.smooth, s.smooth_edges);
+        // Sparkle keeps this setting; builds without Sparkle cannot update.
+        set_check(&c.check_updates, crate::updates::checks_automatically());
+        c.check_updates.setEnabled(crate::updates::available());
     });
 }
 
@@ -439,6 +449,10 @@ fn controls_changed() {
         s.grid_margin = positive(&c.grid_margin, s.grid_margin);
         s.vision = selected(&c.vision, &Vision::ALL, s.vision);
         s.stamp_screenshots = is_on(&c.stamp);
+        s.smooth_edges = is_on(&c.smooth);
+        if crate::updates::available() {
+            crate::updates::set_checks_automatically(is_on(&c.check_updates));
+        }
         Some(is_on(&c.login))
     });
     let Some(login) = login else { return };

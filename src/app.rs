@@ -56,6 +56,7 @@ const AXES_BASE: isize = 500;
 const ZOOM_BASE: isize = 600;
 const GRID_BASE: isize = 700;
 const RECENT_BASE: isize = 800;
+const CHECK_UPDATES: isize = 17;
 const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
 
 define_class!(
@@ -207,6 +208,7 @@ pub fn run() -> anyhow::Result<()> {
         })
     });
     register_hotkey();
+    crate::updates::start(mtm);
     if first_launch {
         welcome();
     }
@@ -464,8 +466,13 @@ fn build_menu(menu: &NSMenu, target: &Target) {
             empty.setTitle(&NSString::from_str("No Colors Yet"));
         }
     } else {
+        // Hex titles keep the menu narrow; clicking copies the chosen format.
+        recent.addItem(&NSMenuItem::new(mtm));
+        if let Some(header) = recent.itemAtIndex(0) {
+            header.setTitle(&NSString::from_str(&format!("Click to Copy as {}", s.color_format.name())));
+        }
         for (i, rgb) in history.colors.iter().enumerate() {
-            let it = item(&recent, &s.color_format.format(*rgb), RECENT_BASE + i as isize, target);
+            let it = item(&recent, &ColorFormat::Hex.format(*rgb), RECENT_BASE + i as isize, target);
             it.setImage(Some(&swatch(*rgb)));
         }
         recent.addItem(&NSMenuItem::separatorItem(mtm));
@@ -516,6 +523,13 @@ fn build_menu(menu: &NSMenu, target: &Target) {
         item(menu, "Allow Screen Recording…", PERMISSION, target);
     }
     menu.addItem(&NSMenuItem::separatorItem(mtm));
+    if crate::updates::available() {
+        let title = match crate::updates::found() {
+            Some(version) => format!("Update to PixlSnapz {version}…"),
+            None => "Check for Updates…".to_string(),
+        };
+        item(menu, &title, CHECK_UPDATES, target);
+    }
     item(menu, "About PixlSnapz", ABOUT, target);
     let quit = item(menu, "Quit PixlSnapz", QUIT, target);
     quit.setKeyEquivalent(&NSString::from_str("q"));
@@ -605,6 +619,7 @@ fn menu_action(tag: isize) {
                 open_url(SCREEN_RECORDING_SETTINGS);
             }
         }
+        CHECK_UPDATES => crate::updates::check(mtm),
         ABOUT => {
             let app = NSApplication::sharedApplication(mtm);
             app.activate();

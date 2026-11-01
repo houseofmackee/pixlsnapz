@@ -133,7 +133,7 @@ impl Grid {
 }
 
 /// Design zoom levels offered in the menu, in percent.
-pub const DESIGN_ZOOMS: &[u32] = &[25, 50, 100, 200, 300, 400];
+pub const DESIGN_ZOOMS: &[u32] = &[25, 33, 50, 67, 75, 100, 125, 150, 200, 300, 400];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -185,6 +185,9 @@ pub struct Settings {
     pub vision: Vision,
     /// Bundle identifiers of apps in which the shortcut is left to the app.
     pub disabled_apps: Vec<String>,
+    /// Find edges on a smoothed screen, comparing neighboring pixels: for
+    /// photos, compressed images, and gradients.
+    pub smooth_edges: bool,
 }
 
 impl Default for Settings {
@@ -214,6 +217,7 @@ impl Default for Settings {
             stamp_screenshots: true,
             vision: Vision::Normal,
             disabled_apps: Vec::new(),
+            smooth_edges: false,
         }
     }
 }
@@ -311,6 +315,19 @@ impl Settings {
     /// Moves the tolerance by `delta`, within 0 to 255.
     pub fn adjust_tolerance(&mut self, delta: i32) {
         self.tolerance = (i32::from(self.tolerance) + delta).clamp(0, 255) as u8;
+    }
+
+    /// The next design zoom preset up or down.
+    pub fn step_design_zoom(&mut self, up: bool) {
+        let current = self.design_zoom;
+        let next = if up {
+            DESIGN_ZOOMS.iter().copied().find(|&z| z > current)
+        } else {
+            DESIGN_ZOOMS.iter().rev().copied().find(|&z| z < current)
+        };
+        if let Some(z) = next {
+            self.design_zoom = z;
+        }
     }
 
     /// The next loupe zoom step in or out.
@@ -426,6 +443,19 @@ mod tests {
         assert!(!s.shortcut_enabled_in("com.b"));
         assert_eq!(s.vision, Vision::Tritanopia);
         assert!(s.stamp_screenshots);
+    }
+
+    #[test]
+    fn design_zoom_steps() {
+        let mut s = Settings::default();
+        s.step_design_zoom(true);
+        assert_eq!(s.design_zoom, 125);
+        s.design_zoom = 90;
+        s.step_design_zoom(false);
+        assert_eq!(s.design_zoom, 75);
+        s.design_zoom = 400;
+        s.step_design_zoom(true);
+        assert_eq!(s.design_zoom, 400);
     }
 
     #[test]
