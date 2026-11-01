@@ -178,6 +178,35 @@ pub(super) fn draw_line(s: &Session, o: &Overlay, (x0, y0, x1, y1): (f64, f64, f
     pill_centered(&text, NSPoint::new(mid.x, mid.y - 16.0), o.size, 12.0, &accent);
 }
 
+/// Protractor: an arc between two lines that meet, with the angle.
+fn draw_joint(o: &Overlay, j: &crate::geometry::Joint, rgb: [f64; 3]) {
+    let pt = |(x, y): (f64, f64)| (x / o.scale, y / o.scale);
+    let (v, a, b) = (pt(j.vertex), pt(j.a), pt(j.b));
+    let arm = |p: (f64, f64)| line_length(p.0 - v.0, p.1 - v.1);
+    let radius = 34.0f64.min(arm(a).min(arm(b)) * 0.5);
+    if radius < 6.0 {
+        return;
+    }
+    let from = line_angle(a.0 - v.0, a.1 - v.1);
+    let to = line_angle(b.0 - v.0, b.1 - v.1);
+    // The short way round, from one arm to the other.
+    let sweep = (to - from + 540.0).rem_euclid(360.0) - 180.0;
+    let accent = color(rgb, 1.0);
+    let arc = NSBezierPath::bezierPath();
+    arc.setLineWidth(lw(1.5));
+    let steps = 32;
+    for i in 0..=steps {
+        let t = (from + sweep * i as f64 / steps as f64).to_radians();
+        let p = NSPoint::new(v.0 + radius * t.cos(), v.1 - radius * t.sin());
+        if i == 0 { arc.moveToPoint(p) } else { arc.lineToPoint(p) }
+    }
+    accent.setStroke();
+    arc.stroke();
+    let mid = (from + sweep / 2.0).to_radians();
+    let at = NSPoint::new(v.0 + (radius + 18.0) * mid.cos(), v.1 - (radius + 18.0) * mid.sin());
+    pill_centered(&crate::geometry::format_angle(j.angle()), at, o.size, 12.0, &accent);
+}
+
 pub(super) fn draw_area(s: &Session, o: &Overlay, r: PxRect, rgb: [f64; 3]) {
     let rect = o.rect_pt(r);
     color(rgb, if high_contrast() { 0.22 } else { 0.12 }).setFill();
@@ -356,8 +385,10 @@ pub(super) fn draw_alignment(o: &Overlay, x: usize, y: usize, rgb: [f64; 3]) {
 }
 
 pub(super) const HINTS: [&str; 4] = [
-    n!("Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  \
-     Click: keep"),
+    n!(
+        "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line (from a line's end: angle)  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  \
+     Click: keep"
+    ),
     n!(
         "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  ⌃-click: window  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  \
      Scroll or [ ]: tolerance  ·  N smooth edges"
@@ -574,6 +605,9 @@ pub(super) fn draw(index: usize) {
                 Item::VerticalGuide { .. } | Item::HorizontalGuide { .. } => {}
             }
         }
+        for j in s.joints_on(index, None) {
+            draw_joint(o, &j, rgb);
+        }
 
         if s.kept || s.exporting {
             return;
@@ -591,7 +625,13 @@ pub(super) fn draw(index: usize) {
             } else if let Some(d) = s.drag {
                 let px = |v: f64| v * o.scale;
                 match d.tool {
-                    Tool::Line => draw_line(s, o, (px(d.start.x), px(d.start.y), px(d.end.x), px(d.end.y)), rgb),
+                    Tool::Line => {
+                        let l = (px(d.start.x), px(d.start.y), px(d.end.x), px(d.end.y));
+                        draw_line(s, o, l, rgb);
+                        for j in s.joints_on(index, Some(l)).iter().filter(|j| j.second == usize::MAX) {
+                            draw_joint(o, j, rgb);
+                        }
+                    }
                     Tool::Circle => {
                         let r = line_length(d.end.x - d.start.x, d.end.y - d.start.y);
                         draw_circle(s, o, (px(d.start.x), px(d.start.y), px(r)), rgb);
@@ -608,8 +648,10 @@ pub(super) fn draw(index: usize) {
                     draw_alignment(o, x, y, rgb);
                 }
                 // ⌃ over a window: its frame, ready to keep with a click.
-                let window = s.window_at(index, p).filter(|_| s.control);
-                if let Some(r) = window {
+                let window = s.window_at(index, p).filter(|_| s.control && !s.picking);
+                if s.picking {
+                    // Picking a color: just the loupe.
+                } else if let Some(r) = window {
                     draw_area(s, o, r, rgb);
                 } else if let Some((n, area)) = s.area_under(index, x, y).filter(|_| s.option) {
                     // ⌥ over a kept box: its spacing to everything around it.
@@ -618,10 +660,10 @@ pub(super) fn draw(index: usize) {
                     let c = s.cross_at(index, x, y);
                     draw_cross(s, o, x, y, &c, s.settings.axes, rgb);
                 }
-                if let Some(n) = s.hovered_item() {
+                if let Some(n) = s.hovered_item().filter(|_| !s.picking) {
                     draw_handles(s, o, n, rgb);
                 }
-                if s.settings.loupe {
+                if s.settings.loupe || s.picking {
                     draw_loupe(s, o, x, y, p, rgb);
                 }
                 if let Some(first) = s.contrast {
@@ -630,7 +672,11 @@ pub(super) fn draw(index: usize) {
             }
         }
 
-        if s.settings.show_hints {
+        if s.picking {
+            let hint = &t!("Click: copy color  ·  ⇧P format  ·  - + zoom  ·  Esc: cancel");
+            let w = pill_size(hint, 11.0).width;
+            pill(hint, NSPoint::new((o.size.width - w) / 2.0, o.safe_bottom - 30.0), o.size, 11.0, &dark());
+        } else if s.settings.show_hints && !s.peek {
             for (row, hint) in HINTS.iter().enumerate() {
                 let hint = &crate::i18n::tr(hint);
                 let w = pill_size(hint, 11.0).width;

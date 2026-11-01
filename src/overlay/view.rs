@@ -156,8 +156,9 @@ define_class!(
             let control = flags.contains(NSEventModifierFlags::Control);
             update(|s| {
                 s.shift = shift;
-                s.option = option;
-                s.control = control;
+                // Held to measure, they are not ⌥ or ⌃ here.
+                s.option = option && !s.peek;
+                s.control = control && !s.peek;
             });
         }
     }
@@ -212,8 +213,8 @@ impl OverlayView {
             s.active = index;
             s.hover = Some(p);
             s.shift = shift;
-            s.option = option;
-            s.control = control;
+            s.option = option && !s.peek;
+            s.control = control && !s.peek;
         });
     }
 
@@ -224,9 +225,18 @@ impl OverlayView {
         blank_cursor().set();
         let p = self.location(event);
         let index = self.index();
-        let option = event.modifierFlags().contains(NSEventModifierFlags::Option);
+        let peek = SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.peek));
+        let option = event.modifierFlags().contains(NSEventModifierFlags::Option) && !peek;
+        if SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.picking)) {
+            update(|s| {
+                s.active = index;
+                s.hover = Some(p);
+            });
+            finish_picking();
+            return;
+        }
         // ⌃-click keeps the window under the pointer.
-        if event.modifierFlags().contains(NSEventModifierFlags::Control) {
+        if event.modifierFlags().contains(NSEventModifierFlags::Control) && !peek {
             update(|s| {
                 s.active = index;
                 s.keep_window(index, p);
@@ -240,7 +250,11 @@ impl OverlayView {
             // starts on a kept item edits it.
             let tool = if option { Tool::Line } else { s.tool };
             let edit = if option { None } else { s.hit_test(index, p) };
-            s.drag = Some(Drag { start: p, end: p, tool, edit });
+            // With the line tool, a drag from a line's end draws a new line
+            // from there (to measure the angle between them) instead.
+            let edit = edit.filter(|t| !(tool == Tool::Line && matches!(t.grip, Grip::LineEnd(_))));
+            let start = if tool == Tool::Line && edit.is_none() { s.snap_to_line_end(index, p) } else { p };
+            s.drag = Some(Drag { start, end: start, tool, edit });
         });
     }
 
@@ -268,6 +282,13 @@ impl OverlayView {
                     d.end = p;
                 } else if d.tool == Tool::Line {
                     d.end = if shift { snap_line(d.start, p) } else { p };
+                    if !shift {
+                        let index = self.index();
+                        let end = s.snap_to_line_end(index, p);
+                        if let Some(d) = s.drag.as_mut() {
+                            d.end = end;
+                        }
+                    }
                 } else if d.tool == Tool::Circle {
                     d.end = p;
                 } else {

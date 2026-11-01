@@ -63,6 +63,62 @@ pub fn format_angle(a: f64) -> String {
     if rounded.fract() == 0.0 { format!("{}°", rounded as i64) } else { format!("{rounded:.1}°") }
 }
 
+/// The angle at `vertex` between the arms to `a` and `b`, in degrees
+/// (`0..=180`).
+pub fn angle_between(vertex: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
+    let (ax, ay) = (a.0 - vertex.0, a.1 - vertex.1);
+    let (bx, by) = (b.0 - vertex.0, b.1 - vertex.1);
+    let cross = ax * by - ay * bx;
+    let dot = ax * bx + ay * by;
+    cross.abs().atan2(dot).to_degrees()
+}
+
+/// Two lines meeting at a shared end: the vertex and the far ends of both.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Joint {
+    pub first: usize,
+    pub second: usize,
+    pub vertex: (f64, f64),
+    pub a: (f64, f64),
+    pub b: (f64, f64),
+}
+
+impl Joint {
+    pub fn angle(&self) -> f64 {
+        angle_between(self.vertex, self.a, self.b)
+    }
+}
+
+/// Pairs of `lines` (x0, y0, x1, y1) whose ends are within `tolerance` of
+/// each other: the angles a protractor shows.
+pub fn joints(lines: &[(f64, f64, f64, f64)], tolerance: f64) -> Vec<Joint> {
+    let ends = |l: &(f64, f64, f64, f64)| [((l.0, l.1), (l.2, l.3)), ((l.2, l.3), (l.0, l.1))];
+    let mut out = Vec::new();
+    for (i, first) in lines.iter().enumerate() {
+        for (j, second) in lines.iter().enumerate().skip(i + 1) {
+            let hit = ends(first)
+                .into_iter()
+                .flat_map(|e| ends(second).map(move |f| (e, f)))
+                .find(|((v, _), (w, _))| line_length(v.0 - w.0, v.1 - w.1) <= tolerance);
+            if let Some(((vertex, a), (_, b))) = hit {
+                out.push(Joint { first: i, second: j, vertex, a, b });
+            }
+        }
+    }
+    out
+}
+
+/// The nearest of `points` within `max` of `p`, or `p`.
+pub fn snap_point(p: (f64, f64), points: &[(f64, f64)], max: f64) -> (f64, f64) {
+    points
+        .iter()
+        .copied()
+        .map(|q| (q, line_length(q.0 - p.0, q.1 - p.1)))
+        .filter(|(_, d)| *d <= max)
+        .min_by(|x, y| x.1.total_cmp(&y.1))
+        .map_or(p, |(q, _)| q)
+}
+
 /// The nearest of `candidates` within `max` of `at`, or `at`.
 pub fn snap_to(at: usize, candidates: &[usize], max: usize) -> usize {
     candidates.iter().copied().filter(|c| c.abs_diff(at) <= max).min_by_key(|c| c.abs_diff(at)).unwrap_or(at)
@@ -341,5 +397,21 @@ mod tests {
     fn snaps_to_nearby_candidates() {
         assert_eq!(snap_to(50, &[44, 53, 90], 5), 53);
         assert_eq!(snap_to(50, &[40, 60], 5), 50);
+    }
+    #[test]
+    fn protractor_angles() {
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
+        assert!(close(angle_between((0.0, 0.0), (10.0, 0.0), (0.0, 10.0)), 90.0));
+        assert!(close(angle_between((0.0, 0.0), (10.0, 0.0), (-10.0, 0.0)), 180.0));
+        assert!(close(angle_between((0.0, 0.0), (10.0, 0.0), (10.0, -10.0)), 45.0));
+        // Line 0 ends where line 1 starts (within 1.5); line 2 is apart.
+        let lines = [(0.0, 0.0, 100.0, 0.0), (101.0, 1.0, 101.0, 80.0), (300.0, 300.0, 400.0, 400.0)];
+        let j = joints(&lines, 1.5);
+        assert_eq!(j.len(), 1);
+        assert_eq!((j[0].first, j[0].second), (0, 1));
+        assert_eq!((j[0].vertex, j[0].a, j[0].b), ((100.0, 0.0), (0.0, 0.0), (101.0, 80.0)));
+        assert!(joints(&lines, 0.5).is_empty());
+        assert_eq!(snap_point((98.0, 3.0), &[(0.0, 0.0), (100.0, 0.0)], 5.0), (100.0, 0.0));
+        assert_eq!(snap_point((90.0, 3.0), &[(100.0, 0.0)], 5.0), (90.0, 3.0));
     }
 }

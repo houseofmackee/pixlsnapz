@@ -1,5 +1,9 @@
 General | label | Measure shortcut: |
 General | button | ⇧⌘1 | Measure shortcut
+General | label | Pick color shortcut: |
+General | button | ⇧⌘2 | Pick color shortcut
+General | label | Hold to measure: |
+General | popup | Off | Hold to measure
 General | button | Launch at login | Launch at login
 General | button | Show shortcut hints while measuring [on] | Show shortcut hints while measuring
 General | button | Check for updates automatically | Check for updates automatically

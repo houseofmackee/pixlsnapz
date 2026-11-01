@@ -22,8 +22,10 @@ use crate::settings::Settings;
 use crate::shortcut::Shortcut;
 use crate::{capture, settings_window};
 
+mod hold;
 mod menu;
 use menu::*;
+pub use menu::{copy_to_clipboard, swatch};
 
 /// Posted by `pixlsnapz measure` to start measuring in the running app.
 pub const MEASURE_NOTIFICATION: &str = "io.github.houseofmackee.pixlsnapz.measure";
@@ -91,6 +93,11 @@ define_class!(
             }
         }
 
+        #[unsafe(method(remotePickColor:))]
+        fn remote_pick_color(&self, _notification: Option<&NSNotification>) {
+            pick_color();
+        }
+
         #[unsafe(method(remoteMeasure:))]
         fn remote_measure(&self, _notification: &NSNotification) {
             // From the Measurement Sets menu: start with that set.
@@ -118,7 +125,7 @@ struct App {
     _status_item: Retained<NSStatusItem>,
     hotkeys: Hotkeys,
     settings: Settings,
-    registered: Option<Shortcut>,
+    registered: Vec<(HotkeyAction, Shortcut)>,
     /// A shortcut is being recorded in Settings: leave the hotkey off.
     suspended: bool,
     /// The app in front (bundle identifier and name), other than PixlSnapz.
@@ -209,12 +216,13 @@ pub fn run() -> anyhow::Result<()> {
             _status_item: status_item,
             hotkeys: Hotkeys::install(),
             settings,
-            registered: None,
+            registered: Vec::new(),
             suspended: false,
             front_app: NSWorkspace::sharedWorkspace().frontmostApplication().and_then(|a| front_app_of(&a)),
         })
     });
     register_hotkey();
+    hold::start();
     crate::updates::start(mtm);
     // For screenshots and tests: open Settings at a tab right away.
     if let Ok(tab) = std::env::var("PIXLSNAPZ_SHOW_SETTINGS") {
@@ -237,20 +245,23 @@ fn register_hotkey() {
             return None;
         }
         let shortcut = a.settings.shortcut();
-        // Left to the app in front when it is one the shortcut is off in.
+        // Left to the app in front when it is one the shortcuts are off in.
         let off_here = a.front_app.as_ref().is_some_and(|(id, _)| !a.settings.shortcut_enabled_in(id));
-        let wanted = (!off_here).then_some(shortcut);
+        let mut wanted = Vec::new();
+        if !off_here {
+            wanted.push((HotkeyAction::Measure, shortcut));
+            if let Some(color) = a.settings.color_shortcut().filter(|c| *c != shortcut) {
+                wanted.push((HotkeyAction::PickColor, color));
+            }
+        }
         if a.registered == wanted {
             return None;
         }
+        let failed = a.hotkeys.set(&wanted);
         a.registered = wanted;
-        match wanted {
-            Some(shortcut) => a.hotkeys.set(&[(HotkeyAction::Measure, shortcut)]).first().copied(),
-            None => {
-                a.hotkeys.set(&[]);
-                None
-            }
-        }
+        // Only the measure shortcut is worth an alert; the color one is
+        // optional (a warning is logged).
+        failed.into_iter().find(|f| *f == shortcut)
     });
     if let Some(shortcut) = failed {
         alert(
@@ -270,7 +281,7 @@ pub fn suspend_hotkey() {
     APP.with(|a| {
         if let Some(a) = a.borrow_mut().as_mut() {
             a.hotkeys.set(&[]);
-            a.registered = None;
+            a.registered.clear();
             a.suspended = true;
         }
     });
@@ -336,11 +347,17 @@ fn change_settings(f: impl FnOnce(&mut Settings)) {
 pub fn on_hotkey(action: HotkeyAction) {
     match action {
         HotkeyAction::Measure => measure(),
+        HotkeyAction::PickColor => pick_color(),
     }
 }
 
 pub fn measure() {
     report_start(overlay::toggle(mtm()));
+}
+
+/// Starts picking a color: the loupe, and a click copies the color.
+pub fn pick_color() {
+    report_start(overlay::pick_color(mtm()));
 }
 
 /// Runs a `pixlsnapz://measure?set=…` or `pixlsnapz://settings?tab=…` link.
@@ -360,6 +377,11 @@ fn open_pixlsnapz_url(url: &str) {
             if let Some(tab) = tab {
                 settings_window::select_tab(&tab);
             }
+        }
+        Some(UrlCommand::PickColor) => pick_color(),
+        Some(UrlCommand::Colors) => {
+            overlay::end_measuring();
+            settings_window::show_colors(mtm());
         }
         None => tracing::warn!("unknown link {url}"),
     }

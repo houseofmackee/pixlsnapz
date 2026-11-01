@@ -7,6 +7,10 @@ pub enum UrlCommand {
     Measure { set: Option<String> },
     /// `pixlsnapz://settings`, optionally `?tab=measuring`.
     Settings { tab: Option<String> },
+    /// Pick a color with the loupe.
+    PickColor,
+    /// Open the Colors window.
+    Colors,
 }
 
 /// The command in a `pixlsnapz://` URL, or `None` for anything else.
@@ -22,6 +26,8 @@ pub fn parse_url(url: &str) -> Option<UrlCommand> {
     match command.trim_end_matches('/').to_ascii_lowercase().as_str() {
         "" | "measure" => Some(UrlCommand::Measure { set: param("set") }),
         "settings" => Some(UrlCommand::Settings { tab: param("tab") }),
+        "pick-color" => Some(UrlCommand::PickColor),
+        "colors" => Some(UrlCommand::Colors),
         _ => None,
     }
 }
@@ -94,6 +100,8 @@ mod tests {
             Some(UrlCommand::Settings { tab: Some("measuring".into()) })
         );
         assert_eq!(parse_url("pixlsnapz://settings?tab="), Some(UrlCommand::Settings { tab: None }));
+        assert_eq!(parse_url("pixlsnapz://pick-color"), Some(UrlCommand::PickColor));
+        assert_eq!(parse_url("pixlsnapz:colors/"), Some(UrlCommand::Colors));
         assert_eq!(parse_url("pixlsnapz://launch-rockets"), None);
         assert_eq!(parse_url("https://example.com"), None);
         assert_eq!(

@@ -48,6 +48,8 @@ pub(super) const CHECK_UPDATES: isize = 17;
 pub(super) const OVERLAY_CHOOSE: isize = 18;
 pub(super) const OVERLAY_SHOW: isize = 19;
 pub(super) const OVERLAY_REMOVE: isize = 20;
+pub(super) const PICK_COLOR: isize = 21;
+pub(super) const COLORS_WINDOW: isize = 22;
 pub(super) const SIZE_FORMAT_BASE: isize = 900;
 pub(super) const SET_BASE: isize = 1000;
 pub(super) const DELETE_SET_BASE: isize = 1100;
@@ -78,6 +80,23 @@ pub(super) fn check(menu: &NSMenu, title: &str, tag: isize, on: bool, target: &T
     i.setState(if on { NSControlStateValueOn } else { NSControlStateValueOff });
 }
 
+/// Shows `shortcut` next to a menu item (it works globally, not from here).
+fn show_shortcut(item: &NSMenuItem, shortcut: crate::shortcut::Shortcut) {
+    item.setKeyEquivalent(&NSString::from_str(shortcut.key_name()));
+    let mut mask = NSEventModifierFlags::empty();
+    for (bit, flag) in [
+        (CMD, NSEventModifierFlags::Command),
+        (SHIFT, NSEventModifierFlags::Shift),
+        (OPTION, NSEventModifierFlags::Option),
+        (CONTROL, NSEventModifierFlags::Control),
+    ] {
+        if shortcut.modifiers & bit != 0 {
+            mask |= flag;
+        }
+    }
+    item.setKeyEquivalentModifierMask(mask);
+}
+
 pub(super) fn submenu(menu: &NSMenu, title: &str) -> Retained<NSMenu> {
     let mtm = mtm();
     let parent = NSMenuItem::new(mtm);
@@ -93,21 +112,12 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
     menu.removeAllItems();
     let s = settings();
 
-    let shortcut = s.shortcut();
     let measure = item(menu, "Measure", MEASURE, target);
-    measure.setKeyEquivalent(&NSString::from_str(shortcut.key_name()));
-    let mut mask = NSEventModifierFlags::empty();
-    for (bit, flag) in [
-        (CMD, NSEventModifierFlags::Command),
-        (SHIFT, NSEventModifierFlags::Shift),
-        (OPTION, NSEventModifierFlags::Option),
-        (CONTROL, NSEventModifierFlags::Control),
-    ] {
-        if shortcut.modifiers & bit != 0 {
-            mask |= flag;
-        }
+    show_shortcut(&measure, s.shortcut());
+    let pick = item(menu, "Pick Color", PICK_COLOR, target);
+    if let Some(shortcut) = s.color_shortcut() {
+        show_shortcut(&pick, shortcut);
     }
-    measure.setKeyEquivalentModifierMask(mask);
     if overlay::has_kept() {
         item(menu, "Clear Kept Measurements", CLEAR_KEPT, target);
     }
@@ -120,6 +130,7 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
         };
         item(menu, &title, TOGGLE_APP, target);
     }
+    item(menu, "Colors…", COLORS_WINDOW, target);
     let recent = submenu(menu, "Recent Colors");
     let history = ColorHistory::load_from(&ColorHistory::path());
     if history.colors.is_empty() {
@@ -136,7 +147,7 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
         }
         for (i, rgb) in history.colors.iter().enumerate() {
             let it = item(&recent, &ColorFormat::Hex.format(*rgb), RECENT_BASE + i as isize, target);
-            it.setImage(Some(&swatch(*rgb)));
+            it.setImage(Some(&swatch(*rgb, 14.0)));
         }
         recent.addItem(&NSMenuItem::separatorItem(mtm));
         item(&recent, "Clear Recent Colors", CLEAR_COLORS, target);
@@ -230,7 +241,9 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
 }
 
 /// A small rounded square of `rgb`, for menus.
-pub(super) fn swatch(rgb: [u8; 3]) -> Retained<NSImage> {
+/// A rounded color square `size` points wide, for menus and the Colors
+/// window.
+pub fn swatch(rgb: [u8; 3], size: f64) -> Retained<NSImage> {
     let draw = RcBlock::new(move |rect: NSRect| {
         let inner = NSRect::new(
             NSPoint::new(rect.origin.x + 0.5, rect.origin.y + 0.5),
@@ -250,10 +263,10 @@ pub(super) fn swatch(rgb: [u8; 3]) -> Retained<NSImage> {
         path.stroke();
         Bool::YES
     });
-    NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(14.0, 14.0), false, &draw)
+    NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(size, size), false, &draw)
 }
 
-pub(super) fn copy_to_clipboard(text: &str) {
+pub fn copy_to_clipboard(text: &str) {
     let pasteboard = objc2_app_kit::NSPasteboard::generalPasteboard();
     pasteboard.clearContents();
     // SAFETY: a static constant.
@@ -280,6 +293,18 @@ pub(super) fn menu_action(tag: isize) {
                 }
             }
         }
+        PICK_COLOR => {
+            APP.with(|a| {
+                if let Some(a) = a.borrow().as_ref() {
+                    // SAFETY: the selector exists on the target.
+                    let _: () = unsafe {
+                        msg_send![&*a.target, performSelector: sel!(remotePickColor:), withObject: None::<&AnyObject>,
+                            afterDelay: 0.15f64]
+                    };
+                }
+            });
+        }
+        COLORS_WINDOW => settings_window::show_colors(mtm),
         // Let the menu close before the screen is captured.
         MEASURE => {
             APP.with(|a| {
@@ -317,6 +342,7 @@ pub(super) fn menu_action(tag: isize) {
             if let Err(e) = ColorHistory::default().save_to(&ColorHistory::path()) {
                 tracing::warn!("clearing the color history: {e:#}");
             }
+            settings_window::refresh_colors();
         }
         t if (RECENT_BASE..RECENT_BASE + ColorHistory::MAX as isize).contains(&t) => {
             let history = ColorHistory::load_from(&ColorHistory::path());

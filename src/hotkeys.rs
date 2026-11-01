@@ -70,12 +70,14 @@ unsafe extern "C" {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HotkeyAction {
     Measure = 1,
+    PickColor = 2,
 }
 
 impl HotkeyAction {
     fn from_id(id: u32) -> Option<HotkeyAction> {
         match id {
             1 => Some(HotkeyAction::Measure),
+            2 => Some(HotkeyAction::PickColor),
             _ => None,
         }
     }

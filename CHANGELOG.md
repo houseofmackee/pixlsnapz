@@ -28,8 +28,16 @@ the GitHub release shows.
 - Measurement sets: ⇧S saves what is on screen under a name, ⇧R cycles
   through saved sets, and Measurement Sets in the menu starts measuring
   with one or deletes it.
-- `pixlsnapz://` links start measuring (optionally with a saved set) or
-  open a Settings tab.
+- `pixlsnapz://` links start measuring (optionally with a saved set),
+  pick a color, or open a Settings tab or the Colors window.
+- Protractor: a line started or ended at the end of a kept line shows the
+  angle between the two, and ⌘C copies it.
+- A color picker shortcut (⇧⌘2, or Pick Color in the menu): just the loupe,
+  and a click copies the color.
+- A Colors window: recent colors with their codes, click to copy, contrast
+  between the last two clicked, palettes, and export as CSS, JSON, or ASE.
+- Hold to measure: hold a chosen pair of modifier keys to see distances,
+  and let go to stop (off by default; in Settings).
 
 ### Changed
 

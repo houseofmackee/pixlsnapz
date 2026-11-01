@@ -32,12 +32,16 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Links**: `pixlsnapz://measure` starts measuring, `pixlsnapz://measure?set=Header` with a saved set, and `pixlsnapz://settings?tab=grid` opens a Settings tab, for Shortcuts, launchers, and scripts
 - **Guides**: press V or H for a vertical or horizontal guide at the pointer; guides snap to nearby edges, show the distances between each other and to the screen edges, and move with the arrow keys
 - **Line ruler**: ⌥-drag (or press L for the line tool) to measure the length and angle of any line, with a protractor arc; hold ⇧ to snap to 45°
+- **Protractor**: start (or end) a line at the end of a kept line, and the angle between the two shows with an arc; ⌘C copies it, such as `125.5°`
 - **Circle tool**: press E and drag from the center to measure radius and diameter
 - **Jump to the next edge**: ⌥ plus an arrow key moves the pointer just past the next edge, object by object
 - **One direction at a time**: press X to measure only horizontally or only vertically
 - **Crosshair**: hold ⇧ for lines across the whole screen, to check alignment
 - **Loupe**: a pixel grid magnifier next to the pointer, with the color and coordinates of the pixel under it; zoom from 4× to 32× with - and +
 - **Colors**: P copies the color under the pointer and ⌥P the average color of the last area, as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code (⇧P switches); the last 20 are under Recent Colors in the menu bar icon's menu
+- **Color picker shortcut**: ⇧⌘2 (or Pick Color in the menu) shows just the loupe; a click copies the color under the pointer, without measuring
+- **Colors window and palettes**: Colors… in the menu lists the recent colors with their hex, RGB, and HSL codes; click one to copy it, and the last two clicked show their contrast. Save the recent colors as a named palette, and export any list as CSS custom properties, JSON, or Adobe swatches (ASE)
+- **Hold to measure**: choose a pair of modifier keys in Settings (⌃⌥, ⌥⌘, or ⌃⌘); holding them on their own for a moment shows distances right away, and letting go stops
 - **Color vision**: ⇧Z shows the loupe as people with protanopia, deuteranopia, tritanopia, or achromatopsia see it
 - **Screenshots**: ⌘S saves the last area as a PNG on the Desktop (⇧⌘C copies it), with the measurements drawn in (M turns that off); hold ⌥ for padding around it. ⌘E opens it in [CleanShotZ](https://github.com/houseofmackee/cleanshotz) to annotate
 - **Copy sizes as code**: T switches what ⌘C copies: `120 × 48`, CSS (`width: 120px; height: 48px;`), Tailwind (`w-[120px] h-[48px]`), SwiftUI (`.frame(width: 120, height: 48)`), or `CGSize(width: 120, height: 48)`
@@ -92,7 +96,7 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | Move | Distances to the nearest edges |
 | Drag | Measure an area, snapped to its content |
 | ⌘ drag, right-drag | Measure an area without snapping |
-| ⌥ drag | Measure a line: length and angle |
+| ⌥ drag | Measure a line: length and angle; from (or to) the end of a kept line, also the angle between them |
 | L | Line tool on or off (drag draws lines) |
 | E | Circle tool on or off (drag from the center) |
 | ⇧ while dragging | Square area, or a line at a multiple of 45° |
@@ -151,6 +155,8 @@ From a script or a launcher such as Raycast or Alfred, `PixlSnapz.app/Contents/M
 | `pixlsnapz://measure?set=Header` | Start measuring with the saved set Header (names ignore case) |
 | `pixlsnapz://settings` | Open Settings |
 | `pixlsnapz://settings?tab=grid` | Open Settings at a tab: general, measuring, colors, grid, or screenshots |
+| `pixlsnapz://pick-color` | Pick a color with the loupe |
+| `pixlsnapz://colors` | Open the Colors window |
 
 Measurements kept on screen with B stay until you measure again (they come back for editing) or choose Clear Kept Measurements in the menu bar icon's menu.
 
@@ -191,9 +197,11 @@ overlay_opacity = 0.5        # 0 to 1
 overlay_difference = false   # show the difference with the screen instead
 overlay_x = 0.0              # the image's top-left corner, in screen pixels
 overlay_y = 0.0
+color_shortcut = "shift+cmd+2"  # picks a color; "" for none
+hold_keys = "off"            # or "control_option", "option_command", "control_command"
 ```
 
-The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R, and recent colors in `colors.toml`.
+The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R, recent colors in `colors.toml`, saved measurement sets in `sets.toml`, and palettes in `palettes.toml`.
 
 ## Build and run
 

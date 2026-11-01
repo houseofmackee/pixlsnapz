@@ -12,7 +12,9 @@ use objc2_foundation::{NSPoint, NSRect, NSSize, NSTimer};
 
 use crate::capture::Shot;
 use crate::capture::WindowFrame;
-use crate::geometry::{Spacing, distance_to_segment, move_rect, rect_handles, resize_rect, spacing};
+use crate::geometry::{
+    Joint, Spacing, distance_to_segment, joints, move_rect, rect_handles, resize_rect, snap_point, spacing,
+};
 use crate::items::SavedSets;
 use crate::items::{Display, Item, SavedItem, SavedSession};
 use crate::measure::{
@@ -71,6 +73,8 @@ pub(super) struct Target {
 
 /// How near (in points) the pointer must be to take hold of a kept item.
 const GRIP_TOLERANCE: f64 = 6.0;
+/// How close (in points) a new line's end snaps to a kept line's end.
+const JOINT_SNAP: f64 = 8.0;
 
 pub(super) struct Overlay {
     pub(super) window: Retained<OverlayWindow>,
@@ -166,6 +170,12 @@ pub(super) struct Session {
     /// ⇧S: the name being typed for a new set, and whether the next key
     /// replaces it (the suggestion is selected, as in a text field).
     pub(super) naming: Option<(String, bool)>,
+    /// Started with the color shortcut: only the loupe shows, and a click
+    /// (or Return or P) copies the color under the pointer and ends.
+    pub(super) picking: bool,
+    /// Started by holding the hold-to-measure keys: those keys do not count
+    /// as ⌃ or ⌥ here, and releasing them ends measuring.
+    pub(super) peek: bool,
 }
 
 impl Session {
@@ -198,6 +208,8 @@ impl Session {
             windows: Vec::new(),
             current_set: None,
             naming: None,
+            picking: false,
+            peek: false,
         }
     }
 
@@ -372,7 +384,58 @@ impl Session {
 
     /// What ⌘C copies: like `copy_text`, with sizes in the chosen size
     /// format.
+    /// The kept lines on display `index`, in pixels, with their item numbers.
+    fn lines_on(&self, index: usize) -> Vec<(usize, (f64, f64, f64, f64))> {
+        self.items
+            .iter()
+            .enumerate()
+            .filter(|(_, (i, _))| *i == index)
+            .filter_map(|(n, (_, item))| match *item {
+                Item::Line { x0, y0, x1, y1 } => Some((n, (x0, y0, x1, y1))),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The angles between lines that meet on display `index` (protractor),
+    /// counting `extra` (a line being drawn, in pixels) last. The joints'
+    /// `first` and `second` are item numbers (`usize::MAX` for `extra`).
+    pub(super) fn joints_on(&self, index: usize, extra: Option<(f64, f64, f64, f64)>) -> Vec<Joint> {
+        let mut lines = self.lines_on(index);
+        lines.extend(extra.map(|l| (usize::MAX, l)));
+        let plain: Vec<_> = lines.iter().map(|(_, l)| *l).collect();
+        joints(&plain, 1.0)
+            .into_iter()
+            .map(|j| Joint { first: lines[j.first].0, second: lines[j.second].0, ..j })
+            .collect()
+    }
+
+    /// `p` moved onto the end of a kept line nearby, so a new line starting
+    /// or ending there measures the angle between the two.
+    pub(super) fn snap_to_line_end(&self, index: usize, p: NSPoint) -> NSPoint {
+        let Some(o) = self.overlays.get(index) else { return p };
+        let ends: Vec<(f64, f64)> = self
+            .lines_on(index)
+            .into_iter()
+            .flat_map(|(_, l)| [(l.0 / o.scale, l.1 / o.scale), (l.2 / o.scale, l.3 / o.scale)])
+            .collect();
+        let (x, y) = snap_point((p.x, p.y), &ends, JOINT_SNAP);
+        NSPoint::new(x, y)
+    }
+
+    /// When the latest item is a line meeting another: the angle between
+    /// them, which ⌘C copies.
+    fn last_joint_angle(&self) -> Option<String> {
+        let n = self.items.len().checked_sub(1)?;
+        let (index, Item::Line { .. }) = self.items[n] else { return None };
+        let joint = self.joints_on(index, None).into_iter().rev().find(|j| j.first == n || j.second == n)?;
+        Some(crate::geometry::format_angle(joint.angle()))
+    }
+
     pub(super) fn clipboard_text(&self) -> Option<String> {
+        if let Some(angle) = self.last_joint_angle() {
+            return Some(angle);
+        }
         let format = self.settings.size_format;
         let units = self.settings.units;
         let size = |w: f64, h: f64, scale: &Scale| {
@@ -560,6 +623,9 @@ impl Session {
 
     /// The text to copy: the last kept measurement, or the one under the cursor.
     pub(super) fn copy_text(&self) -> Option<String> {
+        if let Some(angle) = self.last_joint_angle() {
+            return Some(angle);
+        }
         let last = self.items.iter().rev().find_map(|(i, item)| self.text_of(item, &self.overlays[*i].measure));
         if last.is_some() {
             return last;

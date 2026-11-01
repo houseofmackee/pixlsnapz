@@ -364,6 +364,40 @@ pub fn measure_with_set(name: &str, mtm: MainThreadMarker) -> Result<(), StartEr
     Ok(())
 }
 
+/// Starts picking a color (the color shortcut): measuring with only the
+/// loupe, where a click copies the color under the pointer.
+pub fn pick_color(mtm: MainThreadMarker) -> Result<(), StartError> {
+    if !is_measuring() {
+        toggle(mtm)?;
+    }
+    update(|s| s.picking = true);
+    Ok(())
+}
+
+/// Hold to measure: starts measuring until `end_peek`.
+pub fn peek(mtm: MainThreadMarker) -> Result<(), StartError> {
+    if is_measuring() {
+        return Ok(());
+    }
+    toggle(mtm)?;
+    update(|s| s.peek = true);
+    Ok(())
+}
+
+/// The hold-to-measure keys were released: ends measuring if they started it
+/// (and nothing was kept on screen with B).
+pub fn end_peek() {
+    if SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.peek && !s.kept)) {
+        end();
+    }
+}
+
+/// Picking a color: copies it and ends.
+pub(super) fn finish_picking() {
+    actions::copy_color();
+    end();
+}
+
 /// Ends the session.
 pub fn end() {
     let Some(session) = SESSION.with(|s| s.borrow_mut().take()) else { return };

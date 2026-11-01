@@ -135,6 +135,42 @@ impl Grid {
 }
 
 /// Design zoom levels offered in the menu, in percent.
+/// Modifier keys that, held on their own, measure until released.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum HoldKeys {
+    #[default]
+    Off,
+    ControlOption,
+    OptionCommand,
+    ControlCommand,
+}
+
+impl HoldKeys {
+    pub const ALL: [HoldKeys; 4] =
+        [HoldKeys::Off, HoldKeys::ControlOption, HoldKeys::OptionCommand, HoldKeys::ControlCommand];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            HoldKeys::Off => n!("Off"),
+            HoldKeys::ControlOption => "⌃⌥",
+            HoldKeys::OptionCommand => "⌥⌘",
+            HoldKeys::ControlCommand => "⌃⌘",
+        }
+    }
+
+    /// The modifiers as `shortcut` bits (`CONTROL`, `OPTION`, `CMD`).
+    pub fn modifiers(self) -> u32 {
+        use crate::shortcut::{CMD, CONTROL, OPTION};
+        match self {
+            HoldKeys::Off => 0,
+            HoldKeys::ControlOption => CONTROL | OPTION,
+            HoldKeys::OptionCommand => OPTION | CMD,
+            HoldKeys::ControlCommand => CONTROL | CMD,
+        }
+    }
+}
+
 pub const DESIGN_ZOOMS: &[u32] = &[25, 33, 50, 67, 75, 100, 125, 150, 200, 300, 400];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -203,6 +239,11 @@ pub struct Settings {
     /// The image's top-left corner, in screen pixels.
     pub overlay_x: f64,
     pub overlay_y: f64,
+    /// Global shortcut that picks a color (with the loupe) and copies it;
+    /// empty for none.
+    pub color_shortcut: String,
+    /// Hold these modifier keys to measure until they are released.
+    pub hold_keys: HoldKeys,
 }
 
 impl Default for Settings {
@@ -240,6 +281,8 @@ impl Default for Settings {
             overlay_difference: false,
             overlay_x: 0.0,
             overlay_y: 0.0,
+            color_shortcut: "shift+cmd+2".into(),
+            hold_keys: HoldKeys::Off,
         }
     }
 }
@@ -287,6 +330,14 @@ impl Settings {
             tracing::warn!("invalid shortcut setting: {e}; using the default");
             Shortcut::parse(&Settings::default().shortcut).expect("the default shortcut is valid")
         })
+    }
+
+    /// The color picking shortcut, if there is a valid one.
+    pub fn color_shortcut(&self) -> Option<Shortcut> {
+        if self.color_shortcut.trim().is_empty() {
+            return None;
+        }
+        Shortcut::parse(&self.color_shortcut).inspect_err(|e| tracing::warn!("invalid color shortcut: {e}")).ok()
     }
 
     /// The guide color as RGB components from 0 to 1.

@@ -16,6 +16,9 @@
 /* src/settings_window/recorder.rs */
 "Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)" = "⌘, ⌥, ⌃ oder ⇧ dazunehmen (Esc bricht ab)";
 
+/* src/color.rs */
+"Adobe swatches (ASE)" = "Adobe-Farbfelder (ASE)";
+
 /* src/app/menu.rs */
 "Allow Screen Recording…" = "Bildschirmaufnahme erlauben …";
 
@@ -37,7 +40,7 @@
 /* src/units.rs */
 "by" = "mal";
 
-/* src/app/mod.rs */
+/* src/app/mod.rs, src/settings_window/colors.rs */
 "Cancel" = "Abbrechen";
 
 /* src/settings_window/mod.rs */
@@ -73,14 +76,20 @@
 /* src/app/menu.rs */
 "Clear Kept Measurements" = "Behaltene Messungen entfernen";
 
-/* src/app/menu.rs */
+/* src/app/menu.rs, src/settings_window/colors.rs */
 "Clear Recent Colors" = "Letzte Farben löschen";
 
 /* src/overlay/keys.rs */
 "Cleared" = "Entfernt";
 
+/* src/settings_window/colors.rs */
+"Click a color to copy it; the last two clicked show their contrast." = "Klicke auf eine Farbe, um sie zu kopieren; die letzten zwei zeigen ihren Kontrast.";
+
 /* src/app/menu.rs */
 "Click to Copy as {format}" = "Klicken kopiert als {format}";
+
+/* src/overlay/draw.rs */
+"Click: copy color  ·  ⇧P format  ·  - + zoom  ·  Esc: cancel" = "Klick: Farbe kopieren  ·  ⇧P Format  ·  - + Zoom  ·  Esc: abbrechen";
 
 /* src/app/menu.rs */
 "Color" = "Farbe";
@@ -91,8 +100,14 @@
 /* src/overlay/keys.rs */
 "Color format: {name}" = "Farbformat: {name}";
 
+/* src/settings_window/colors.rs */
+"Colors" = "Farben";
+
 /* src/settings_window/mod.rs */
 "Colors & Loupe" = "Farben & Lupe";
+
+/* src/app/menu.rs */
+"Colors…" = "Farben …";
 
 /* src/settings.rs */
 "Column Grid" = "Spaltenraster";
@@ -112,14 +127,29 @@
 /* src/i18n.rs, src/overlay/actions.rs */
 "Copied {text}" = "{text} kopiert";
 
+/* src/settings_window/colors.rs */
+"Copy as" = "Kopieren als";
+
+/* src/settings_window/colors.rs */
+"Copy as:" = "Kopieren als:";
+
 /* src/settings_window/mod.rs */
 "Copy colors as:" = "Farben kopieren als:";
 
 /* src/settings_window/mod.rs */
 "Copy sizes as:" = "Größen kopieren als:";
 
+/* src/settings_window/colors.rs */
+"Copy {color}" = "{color} kopieren";
+
 /* src/app/mod.rs */
 "Could not capture the screen" = "Der Bildschirm konnte nicht aufgenommen werden";
+
+/* src/settings_window/colors.rs */
+"Could not export the colors" = "Die Farben konnten nicht exportiert werden";
+
+/* src/settings_window/colors.rs */
+"Could not save the palette" = "Die Palette konnte nicht gesichert werden";
 
 /* src/overlay/actions.rs */
 "Could not save the screenshot" = "Das Bildschirmfoto konnte nicht gesichert werden";
@@ -130,6 +160,9 @@
 /* src/overlay/actions.rs */
 "Could not take the screenshot" = "Das Bildschirmfoto konnte nicht erstellt werden";
 
+/* src/color.rs */
+"CSS custom properties" = "CSS-Variablen";
+
 /* src/settings.rs */
 "Cyan" = "Cyan";
 
@@ -138,6 +171,9 @@
 
 /* src/app/menu.rs */
 "Delete" = "Löschen";
+
+/* src/settings_window/colors.rs */
+"Delete Palette" = "Palette löschen";
 
 /* src/app/menu.rs */
 "Design Overlay" = "Design-Overlay";
@@ -179,7 +215,7 @@
 "Drag over an area first" = "Zuerst eine Fläche aufziehen";
 
 /* src/overlay/draw.rs */
-"Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep" = "Ziehen: Fläche  ·  ⌘/Rechtsziehen: ohne Einrasten  ·  ⌥-Ziehen oder L: Linie  ·  E: Kreis  ·  ⇧: Fadenkreuz, Quadrat, 45°  ·  Klick: behalten";
+"Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line (from a line's end: angle)  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep" = "Ziehen: Fläche  ·  ⌘/Rechtsziehen: ohne Einrasten  ·  ⌥-Ziehen oder L: Linie (vom Ende einer Linie: Winkel)  ·  E: Kreis  ·  ⇧: Fadenkreuz, Quadrat, 45°  ·  Klick: behalten";
 
 /* src/settings_window/mod.rs */
 "Draw the measurements into screenshots" = "Messungen in Bildschirmfotos einzeichnen";
@@ -195,6 +231,15 @@
 
 /* src/settings.rs */
 "Exact" = "Exakt";
+
+/* src/settings_window/colors.rs */
+"Export {name}" = "{name} exportieren";
+
+/* src/settings_window/colors.rs */
+"Export…" = "Exportieren …";
+
+/* src/settings_window/colors.rs */
+"Format:" = "Format:";
 
 /* src/overlay/keys.rs */
 "Freeze screen" = "Bildschirm einfrieren";
@@ -237,6 +282,9 @@
 
 /* src/settings.rs */
 "High" = "Hoch";
+
+/* src/settings_window/mod.rs */
+"Hold to measure:" = "Halten zum Messen:";
 
 /* src/settings.rs */
 "Horizontal only" = "Nur waagerecht";
@@ -331,6 +379,9 @@
 /* src/app/menu.rs */
 "No Colors Yet" = "Noch keine Farben";
 
+/* src/settings_window/colors.rs */
+"No colors yet: pick one with the Pick Color shortcut, or P while measuring." = "Noch keine Farben: nimm eine mit dem Tastenkürzel für „Farbe aufnehmen“ oder mit P beim Messen auf.";
+
 /* src/overlay/session.rs */
 "No saved set called {name}" = "Kein gesichertes Set namens {name}";
 
@@ -339,6 +390,9 @@
 
 /* src/app/menu.rs */
 "No Sets Yet: ⇧S Saves One While Measuring" = "Noch keine Sets: ⇧S sichert eines beim Messen";
+
+/* src/settings_window/mod.rs */
+"None" = "Keins";
 
 /* src/color.rs */
 "Normal vision" = "Normales Sehen";
@@ -366,6 +420,15 @@
 
 /* src/settings.rs */
 "Orange" = "Orange";
+
+/* src/settings_window/colors.rs */
+"Palette" = "Palette";
+
+/* src/app/menu.rs */
+"Pick Color" = "Farbe aufnehmen";
+
+/* src/settings_window/mod.rs */
+"Pick color shortcut:" = "Farbe aufnehmen:";
 
 /* src/settings.rs */
 "Pink" = "Pink";
@@ -415,7 +478,7 @@
 /* src/units.rs */
 "radius" = "Radius";
 
-/* src/app/menu.rs */
+/* src/app/menu.rs, src/settings_window/colors.rs */
 "Recent Colors" = "Letzte Farben";
 
 /* src/app/menu.rs */
@@ -426,6 +489,15 @@
 
 /* src/overlay/draw.rs */
 "Return: save  ·  Esc: cancel" = "Return: sichern  ·  Esc: abbrechen";
+
+/* src/settings_window/colors.rs */
+"Save" = "Sichern";
+
+/* src/settings_window/colors.rs */
+"Save as Palette…" = "Als Palette sichern …";
+
+/* src/settings_window/colors.rs */
+"Save the recent colors as a palette named" = "Die letzten Farben als Palette sichern namens";
 
 /* src/overlay/actions.rs, src/overlay/draw.rs */
 "Save these measurements and guides as" = "Diese Messungen und Hilfslinien sichern als";
@@ -459,6 +531,9 @@
 
 /* src/settings_window/mod.rs */
 "Shortcut off in:" = "Tastenkürzel aus in:";
+
+/* src/settings_window/colors.rs */
+"Show" = "Zeigen";
 
 /* src/app/menu.rs */
 "Show Aspect Ratio" = "Seitenverhältnis zeigen";
@@ -532,6 +607,9 @@
 /* src/settings_window/recorder.rs */
 "Type a shortcut (Esc cancels)" = "Tastenkürzel drücken (Esc bricht ab)";
 
+/* src/settings_window/recorder.rs */
+"Type a shortcut (⌫ none, Esc cancels)" = "Tastenkürzel drücken (⌫ keins, Esc bricht ab)";
+
 /* src/overlay/draw.rs */
 "U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast" = "U Einheiten  ·  O Raster  ·  F einfrieren  ·  Z Lupe  ·  - + Zoom  ·  ⇧Z Sehen  ·  D ⇧D Design-Zoom  ·  I Design-Overlay  ·  P Farbe  ·  ⇧P Format  ·  ⌥P Durchschnitt  ·  K Kontrast";
 
@@ -555,6 +633,9 @@
 
 /* src/settings.rs */
 "Yellow" = "Gelb";
+
+/* src/settings_window/colors.rs */
+"{a} and {b}: contrast {ratio}" = "{a} und {b}: Kontrast {ratio}";
 
 /* src/overlay/keys.rs */
 "{name}: off" = "{name}: aus";

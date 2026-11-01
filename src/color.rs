@@ -215,6 +215,154 @@ impl ColorHistory {
     }
 }
 
+/// A named group of colors, saved in `palettes.toml`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Palette {
+    pub name: String,
+    #[serde(default)]
+    pub colors: Vec<[u8; 3]>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Palettes {
+    #[serde(default)]
+    pub palettes: Vec<Palette>,
+}
+
+impl Palettes {
+    pub fn path() -> PathBuf {
+        Settings::path().with_file_name("palettes.toml")
+    }
+
+    pub fn load_from(path: &Path) -> Palettes {
+        std::fs::read_to_string(path).ok().and_then(|t| toml::from_str(&t).ok()).unwrap_or_default()
+    }
+
+    pub fn save_to(&self, path: &Path) -> Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        }
+        std::fs::write(path, toml::to_string(self)?).with_context(|| format!("writing {}", path.display()))
+    }
+
+    /// Adds `colors` as palette `name`, replacing one with the same name
+    /// (ignoring case).
+    pub fn put(&mut self, name: &str, colors: Vec<[u8; 3]>) {
+        let name = name.trim();
+        let palette = Palette { name: name.to_string(), colors };
+        match self.palettes.iter_mut().find(|p| p.name.eq_ignore_ascii_case(name)) {
+            Some(p) => *p = palette,
+            None => self.palettes.push(palette),
+        }
+    }
+
+    pub fn remove(&mut self, name: &str) {
+        self.palettes.retain(|p| !p.name.eq_ignore_ascii_case(name));
+    }
+
+    /// "Palette 1", "Palette 2", ...: the first such name not taken.
+    pub fn unused_name(&self, base: &str) -> String {
+        (1..)
+            .map(|n| format!("{base} {n}"))
+            .find(|n| !self.palettes.iter().any(|p| p.name.eq_ignore_ascii_case(n)))
+            .expect("a free name")
+    }
+}
+
+/// Ways to export a palette.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Export {
+    Css,
+    Json,
+    Ase,
+}
+
+impl Export {
+    pub const ALL: [Export; 3] = [Export::Css, Export::Json, Export::Ase];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Export::Css => n!("CSS custom properties"),
+            Export::Json => "JSON",
+            Export::Ase => n!("Adobe swatches (ASE)"),
+        }
+    }
+
+    pub fn extension(self) -> &'static str {
+        match self {
+            Export::Css => "css",
+            Export::Json => "json",
+            Export::Ase => "ase",
+        }
+    }
+
+    /// The file contents for palette `name` with `colors`.
+    pub fn render(self, name: &str, colors: &[[u8; 3]]) -> Vec<u8> {
+        let hex = |c: &[u8; 3]| format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]);
+        let slug = slug(name);
+        match self {
+            Export::Css => {
+                let mut out = format!(":root {{\n  /* {} */\n", name.replace("*/", ""));
+                for (i, c) in colors.iter().enumerate() {
+                    out.push_str(&format!("  --{slug}-{}: {};\n", i + 1, hex(c)));
+                }
+                out.push_str("}\n");
+                out.into_bytes()
+            }
+            Export::Json => {
+                let colors: Vec<String> = colors
+                    .iter()
+                    .map(|c| format!("    {{ \"hex\": \"{}\", \"rgb\": [{}, {}, {}] }}", hex(c), c[0], c[1], c[2]))
+                    .collect();
+                let name = name.replace('\\', "\\\\").replace('"', "\\\"");
+                format!("{{\n  \"name\": \"{name}\",\n  \"colors\": [\n{}\n  ]\n}}\n", colors.join(",\n")).into_bytes()
+            }
+            Export::Ase => ase(colors),
+        }
+    }
+}
+
+/// `name` in lowercase with dashes, for CSS variable names.
+fn slug(name: &str) -> String {
+    let mut out = String::new();
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+        } else if !out.ends_with('-') && !out.is_empty() {
+            out.push('-');
+        }
+    }
+    let out = out.trim_end_matches('-').to_string();
+    if out.is_empty() { "color".to_string() } else { out }
+}
+
+/// An Adobe Swatch Exchange file: a header, then one block per color named
+/// by its hex code, as RGB floats.
+fn ase(colors: &[[u8; 3]]) -> Vec<u8> {
+    let mut out = b"ASEF".to_vec();
+    out.extend_from_slice(&1u16.to_be_bytes());
+    out.extend_from_slice(&0u16.to_be_bytes());
+    out.extend_from_slice(&(colors.len() as u32).to_be_bytes());
+    for c in colors {
+        let name: Vec<u16> = format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]).encode_utf16().chain([0]).collect();
+        let mut block = Vec::new();
+        block.extend_from_slice(&(name.len() as u16).to_be_bytes());
+        for unit in &name {
+            block.extend_from_slice(&unit.to_be_bytes());
+        }
+        block.extend_from_slice(b"RGB ");
+        for v in c {
+            block.extend_from_slice(&(f32::from(*v) / 255.0).to_be_bytes());
+        }
+        // Global color.
+        block.extend_from_slice(&0u16.to_be_bytes());
+        out.extend_from_slice(&1u16.to_be_bytes());
+        out.extend_from_slice(&(block.len() as u32).to_be_bytes());
+        out.extend_from_slice(&block);
+    }
+    out
+}
+
 /// Relative luminance of an sRGB color (WCAG 2).
 pub fn luminance(rgb: [u8; 3]) -> f64 {
     0.2126 * to_linear(rgb[0]) + 0.7152 * to_linear(rgb[1]) + 0.0722 * to_linear(rgb[2])
@@ -360,5 +508,38 @@ mod tests {
         assert_eq!(average(&f, PxRect { x0: 0, y0: 0, x1: 4, y1: 2 }), Some([100, 50, 25]));
         assert_eq!(average(&f, PxRect { x0: 0, y0: 0, x1: 1, y1: 1 }), Some([200, 100, 50]));
         assert_eq!(average(&f, PxRect { x0: 3, y0: 0, x1: 3, y1: 2 }), None);
+    }
+    #[test]
+    fn palettes_and_exports() {
+        let mut p = Palettes::default();
+        p.put("Brand", vec![[255, 0, 0]]);
+        p.put(" brand ", vec![[0, 0, 255], [255, 255, 255]]);
+        assert_eq!(p.palettes.len(), 1);
+        assert_eq!(p.palettes[0].colors.len(), 2);
+        assert_eq!(p.unused_name("Palette"), "Palette 1");
+        let dir = std::env::temp_dir().join(format!("pixlsnapz-palettes-{}", std::process::id()));
+        let path = dir.join("palettes.toml");
+        p.save_to(&path).unwrap();
+        assert_eq!(Palettes::load_from(&path), p);
+        std::fs::remove_dir_all(&dir).ok();
+        p.remove("BRAND");
+        assert!(p.palettes.is_empty());
+
+        let colors = [[255, 0, 0], [0, 128, 255]];
+        let css = String::from_utf8(Export::Css.render("My Brand!", &colors)).unwrap();
+        assert!(css.contains("--my-brand-1: #FF0000;"), "{css}");
+        assert!(css.contains("--my-brand-2: #0080FF;"), "{css}");
+        let json = String::from_utf8(Export::Json.render("Say \"hi\"", &colors)).unwrap();
+        assert!(json.contains(r#""name": "Say \"hi\"""#), "{json}");
+        assert!(json.contains(r##"{ "hex": "#0080FF", "rgb": [0, 128, 255] }"##), "{json}");
+        let ase = Export::Ase.render("x", &colors);
+        assert_eq!(&ase[..4], b"ASEF");
+        assert_eq!(u32::from_be_bytes(ase[8..12].try_into().unwrap()), 2);
+        // Block: type, length, then the name length (8 units with the 0).
+        assert_eq!(u16::from_be_bytes(ase[12..14].try_into().unwrap()), 1);
+        let len = u32::from_be_bytes(ase[14..18].try_into().unwrap()) as usize;
+        assert_eq!(len, 2 + 8 * 2 + 4 + 12 + 2);
+        assert_eq!(ase.len(), 12 + 2 * (6 + len));
+        assert_eq!(&ase[18 + 2 + 16..18 + 2 + 16 + 4], b"RGB ");
     }
 }

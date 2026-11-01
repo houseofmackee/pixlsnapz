@@ -42,6 +42,7 @@ pub(super) fn copy_color() {
     });
     if let Some((text, rgb)) = text {
         ColorHistory::remember(rgb);
+        crate::settings_window::refresh_colors();
         set_clipboard_string(&text);
         update(|s| s.toast(t!("Copied {text}", text)));
     }
@@ -62,6 +63,7 @@ pub(super) fn pick_contrast() {
             Some(first) => {
                 ColorHistory::remember(first);
                 ColorHistory::remember(here);
+                crate::settings_window::refresh_colors();
                 let text = contrast_text(first, here);
                 s.toast(t!("Copied contrast {text}", text = &text));
                 copied = Some(text);

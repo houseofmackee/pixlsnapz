@@ -71,6 +71,11 @@ pub(super) fn key_down(event: &NSEvent) {
     let option = flags.contains(NSEventModifierFlags::Option);
     let chars = event.charactersIgnoringModifiers().map(|c| c.to_string().to_lowercase()).unwrap_or_default();
 
+    let picking = SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.picking));
+    if picking && !command && (matches!(code, KEY_RETURN | KEY_ENTER) || (chars == "p" && !shift && !option)) {
+        finish_picking();
+        return;
+    }
     if SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.naming.is_some())) {
         name_key(event, code, command);
         return;

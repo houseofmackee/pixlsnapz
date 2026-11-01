@@ -16,11 +16,13 @@ use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSS
 
 use crate::color::{ColorFormat, Vision};
 use crate::i18n::tr;
-use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, LOUPE_ZOOMS, Settings, Units};
+use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, HoldKeys, LOUPE_ZOOMS, Settings, Units};
 use crate::units::SizeFormat;
 
+mod colors;
 mod pickers;
 mod recorder;
+pub use colors::{refresh_colors, show_colors};
 use pickers::*;
 use recorder::*;
 
@@ -30,6 +32,7 @@ const HEIGHT: f64 = 380.0;
 const LABEL_WIDTH: f64 = 190.0;
 const ROW: f64 = 30.0;
 const KEY_ESCAPE: u16 = 53;
+const KEY_DELETE: u16 = 51;
 /// English tab titles (also what `select_tab` matches), translated when shown.
 const TAB_TITLES: [&str; 5] = [n!("General"), n!("Measuring"), n!("Colors & Loupe"), n!("Grid"), n!("Screenshots")];
 const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
@@ -48,7 +51,12 @@ define_class!(
 
         #[unsafe(method(recordShortcut:))]
         fn record_shortcut(&self, _sender: Option<&AnyObject>) {
-            start_recording();
+            start_recording(false);
+        }
+
+        #[unsafe(method(recordColorShortcut:))]
+        fn record_color_shortcut(&self, _sender: Option<&AnyObject>) {
+            start_recording(true);
         }
 
         #[unsafe(method(chooseFolder:))]
@@ -68,6 +76,36 @@ define_class!(
             save_and_refresh(&s);
         }
 
+        #[unsafe(method(colorClicked:))]
+        fn color_clicked(&self, sender: &NSButton) {
+            colors::color_clicked(sender.tag());
+        }
+
+        #[unsafe(method(colorsChanged:))]
+        fn colors_changed(&self, _sender: Option<&AnyObject>) {
+            colors::colors_changed();
+        }
+
+        #[unsafe(method(savePalette:))]
+        fn save_palette(&self, _sender: Option<&AnyObject>) {
+            colors::save_palette();
+        }
+
+        #[unsafe(method(exportPalette:))]
+        fn export_palette(&self, _sender: Option<&AnyObject>) {
+            colors::export_palette();
+        }
+
+        #[unsafe(method(deletePalette:))]
+        fn delete_palette(&self, _sender: Option<&AnyObject>) {
+            colors::delete_palette();
+        }
+
+        #[unsafe(method(clearColors:))]
+        fn clear_colors(&self, _sender: Option<&AnyObject>) {
+            colors::clear_recent_colors();
+        }
+
         #[unsafe(method(openFile:))]
         fn open_file(&self, _sender: Option<&AnyObject>) {
             crate::app::open_settings_file();
@@ -79,6 +117,8 @@ define_class!(
 
 struct Controls {
     shortcut: Retained<NSButton>,
+    color_shortcut: Retained<NSButton>,
+    hold_keys: Retained<NSPopUpButton>,
     login: Retained<NSButton>,
     hints: Retained<NSButton>,
     units: Retained<NSPopUpButton>,
@@ -118,8 +158,22 @@ struct SettingsWindow {
 
 thread_local! {
     static WINDOW: RefCell<Option<SettingsWindow>> = const { RefCell::new(None) };
+    /// The target of both windows' controls.
+    static TARGET: RefCell<Option<Retained<Target>>> = const { RefCell::new(None) };
     /// The key monitor while a shortcut is being recorded.
     static MONITOR: RefCell<Option<Retained<AnyObject>>> = const { RefCell::new(None) };
+}
+
+/// The target of the windows' controls, made the first time.
+fn target(mtm: MainThreadMarker) -> Retained<Target> {
+    TARGET.with(|t| {
+        t.borrow_mut()
+            .get_or_insert_with(|| {
+                // SAFETY: a plain NSObject subclass.
+                unsafe { msg_send![Target::alloc(mtm), init] }
+            })
+            .clone()
+    })
 }
 
 fn ns(s: &str) -> Retained<NSString> {
@@ -257,7 +311,7 @@ pub fn show(mtm: MainThreadMarker) {
 }
 
 fn build(mtm: MainThreadMarker) -> SettingsWindow {
-    let target: Retained<Target> = unsafe { msg_send![Target::alloc(mtm), init] };
+    let target = target(mtm);
     let t = &*target;
     // SAFETY: NSWindow's designated initializer.
     let window: Retained<NSWindow> = unsafe {
@@ -290,9 +344,12 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     let loupe_zooms: Vec<&str> = loupe_zooms.iter().map(String::as_str).collect();
     let grids: Vec<&str> = Grid::ALL.iter().map(|g| g.name()).collect();
     let visions: Vec<&str> = Vision::ALL.iter().map(|v| v.name()).collect();
+    let holds: Vec<&str> = HoldKeys::ALL.iter().map(|h| h.name()).collect();
 
     let c = Controls {
         shortcut: button("", sel!(recordShortcut:), t, mtm),
+        color_shortcut: button("", sel!(recordColorShortcut:), t, mtm),
+        hold_keys: popup(&holds, t, mtm),
         login: checkbox("Launch at login", t, mtm),
         hints: checkbox("Show shortcut hints while measuring", t, mtm),
         units: popup(&units, t, mtm),
@@ -340,6 +397,8 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
 
     let mut l = page(TAB_TITLES[0]);
     l.row("Measure shortcut:", &c.shortcut, 220.0);
+    l.row("Pick color shortcut:", &c.color_shortcut, 220.0);
+    l.row("Hold to measure:", &c.hold_keys, 120.0);
     l.plain(&c.login, 280.0);
     l.plain(&c.hints, 280.0);
     l.plain(&c.check_updates, 280.0);
@@ -418,7 +477,10 @@ pub fn refresh() {
         let c = &w.c;
         if !recording {
             c.shortcut.setTitle(&ns(&s.shortcut().to_string()));
+            c.color_shortcut.setTitle(&ns(&s.color_shortcut().map_or_else(|| t!("None"), |k| k.to_string())));
         }
+        let hold = HoldKeys::ALL.iter().position(|h| *h == s.hold_keys).unwrap_or(0);
+        c.hold_keys.selectItemAtIndex(hold as isize);
         set_check(&c.login, login);
         set_check(&c.hints, s.show_hints);
         c.units.selectItemAtIndex(Units::ALL.iter().position(|u| *u == s.units).unwrap_or(0) as isize);
@@ -481,6 +543,7 @@ fn controls_changed() {
         let w = w.borrow();
         let c = &w.as_ref()?.c;
         s.show_hints = is_on(&c.hints);
+        s.hold_keys = selected(&c.hold_keys, &HoldKeys::ALL, s.hold_keys);
         s.units = selected(&c.units, &Units::ALL, s.units);
         s.show_units = is_on(&c.show_units);
         s.design_zoom = selected(&c.design_zoom, DESIGN_ZOOMS, s.design_zoom);
