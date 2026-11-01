@@ -13,12 +13,14 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Keep measurements**: click to keep a distance on screen, and drag as many areas as you like. New distances stop at kept areas and guides, so you can read the gap between two objects
 - **Guides**: press V or H for a vertical or horizontal guide at the pointer; guides snap to nearby edges, show the distances between each other and to the screen edges, and move with the arrow keys
 - **Line ruler**: ⌥-drag (or press L for the line tool) to measure the length and angle of any line, with a protractor arc; hold ⇧ to snap to 45°
+- **Circle tool**: press E and drag from the center to measure radius and diameter
 - **Jump to the next edge**: ⌥ plus an arrow key moves the pointer just past the next edge, object by object
 - **One direction at a time**: press X to measure only horizontally or only vertically
 - **Crosshair**: hold ⇧ for lines across the whole screen, to check alignment
 - **Loupe**: a pixel grid magnifier next to the pointer, with the color and coordinates of the pixel under it; zoom from 4× to 32× with - and +
-- **Colors**: P copies the color under the pointer and ⌥P the average color of the last area, as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code (⇧P switches)
-- **Screenshots**: ⌘S saves the last area as a PNG on the Desktop (⇧⌘C copies it); hold ⌥ for padding around it
+- **Colors**: P copies the color under the pointer and ⌥P the average color of the last area, as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code (⇧P switches); the last 20 are under Recent Colors in the menu bar icon's menu
+- **Color vision**: ⇧Z shows the loupe as people with protanopia, deuteranopia, tritanopia, or achromatopsia see it
+- **Screenshots**: ⌘S saves the last area as a PNG on the Desktop (⇧⌘C copies it), with the measurements drawn in (M turns that off); hold ⌥ for padding around it
 - **Freeze screen**: measure a still copy of the screen, so menus and animations stay put
 - **Contrast checker**: press K on one color and K again on another to copy the WCAG contrast ratio and grade, such as `4.54:1  AA`; a live readout with both swatches follows the pointer in between
 - **Units**: points, pixels, millimeters, or inches (real sizes from what each display reports, or a PPI you set), optional unit labels, and the aspect ratio of areas (`16:9`)
@@ -29,7 +31,7 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Adjustable edge tolerance** for shadows, gradients, and low-contrast edges: scroll, or press [ and ]
 - **Restore** the measurements and guides of the previous session (R), even after a restart
 - Multiple displays with different scales, including over full-screen apps
-- Six guide colors, launch at login, and a customizable global shortcut
+- Six guide colors, launch at login, and a customizable global shortcut that can be turned off in chosen apps (such as a design tool that uses it), from the menu bar icon's menu or Settings
 
 ## Install
 
@@ -48,6 +50,7 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | ⌘ drag, right-drag | Measure an area without snapping |
 | ⌥ drag | Measure a line: length and angle |
 | L | Line tool on or off (drag draws lines) |
+| E | Circle tool on or off (drag from the center) |
 | ⇧ while dragging | Square area, or a line at a multiple of 45° |
 | Space while dragging | Move the area |
 | Click | Keep the distances at that point |
@@ -63,8 +66,10 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | ⌥P | Copy the average color of the last area |
 | ⇧P | Switch the color format: hex, RGB, HSL, SwiftUI, AppKit |
 | ⌘S / ⇧⌘C | Save / copy a screenshot of the last area (⌥: with padding) |
+| M | Measurements in screenshots on or off |
 | Z | Loupe on or off |
 | - and + | Loupe zoom out and in |
+| ⇧Z | Loupe color vision: normal, protanopia, deuteranopia, tritanopia, achromatopsia |
 | F | Freeze screen on or off |
 | U | Points, pixels, millimeters, inches |
 | A | Aspect ratio on or off |
@@ -109,9 +114,12 @@ grid_size = 8.0              # points
 grid_columns = 12
 grid_gutter = 20.0           # points
 grid_margin = 0.0            # points
+stamp_screenshots = true     # draw the measurements into screenshots
+vision = "normal"            # or "protanopia", "deuteranopia", "tritanopia", "achromatopsia"
+disabled_apps = []           # bundle identifiers, such as ["com.figma.Desktop"]
 ```
 
-The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R.
+The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R, and recent colors in `colors.toml`.
 
 ## Build and run
 

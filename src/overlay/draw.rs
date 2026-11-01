@@ -10,7 +10,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
 
-use crate::color::{ColorFormat, contrast_text};
+use crate::color::{ColorFormat, Vision, contrast_text};
 use crate::items::Item;
 use crate::measure::{Cross, PxRect, aspect_ratio, columns, format_length, grid_lines, line_angle, line_length};
 use crate::settings::{Axes, Grid};
@@ -97,6 +97,30 @@ pub(super) fn draw_cross(s: &Session, o: &Overlay, x: usize, y: usize, c: &Cross
 
 /// A measured line with end ticks, a protractor arc from the horizontal at
 /// its start, and its length and angle. Coordinates in pixels.
+/// A measured circle: its outline, center, a radius line, and the radius
+/// and diameter. Coordinates in pixels.
+pub(super) fn draw_circle(s: &Session, o: &Overlay, (cx, cy, r): (f64, f64, f64), rgb: [f64; 3]) {
+    let (x, y, rad) = (cx / o.scale, cy / o.scale, r / o.scale);
+    let accent = color(rgb, 1.0);
+    color(rgb, 0.1).setFill();
+    let oval = NSBezierPath::bezierPathWithOvalInRect(NSRect::new(
+        NSPoint::new(x - rad, y - rad),
+        NSSize::new(2.0 * rad, 2.0 * rad),
+    ));
+    oval.fill();
+    oval.setLineWidth(1.5);
+    accent.setStroke();
+    oval.stroke();
+    let radius = NSBezierPath::bezierPath();
+    radius.setLineWidth(1.0);
+    line(&radius, (x, y), (x + rad, y));
+    line(&radius, (x + rad, y - 4.0), (x + rad, y + 4.0));
+    radius.stroke();
+    accent.setFill();
+    NSBezierPath::bezierPathWithOvalInRect(NSRect::new(NSPoint::new(x - 2.5, y - 2.5), NSSize::new(5.0, 5.0))).fill();
+    pill_centered(&s.circle_text(r, &o.measure), NSPoint::new(x, y + 16.0), o.size, 12.0, &accent);
+}
+
 pub(super) fn draw_line(s: &Session, o: &Overlay, (x0, y0, x1, y1): (f64, f64, f64, f64), rgb: [f64; 3]) {
     let (ax, ay, bx, by) = (x0 / o.scale, y0 / o.scale, x1 / o.scale, y1 / o.scale);
     let len_pt = line_length(bx - ax, by - ay);
@@ -353,17 +377,43 @@ pub(super) fn draw_loupe(s: &Session, o: &Overlay, x: usize, y: usize, cursor: N
     clip.fill();
     clip.addClip();
     ctx.setImageInterpolation(NSImageInterpolation::None);
-    // SAFETY: plain drawing; `respectFlipped` keeps the image upright in the flipped view.
-    unsafe {
-        o.image.drawInRect_fromRect_operation_fraction_respectFlipped_hints(
-            dest,
-            src,
-            NSCompositingOperation::Copy,
-            1.0,
-            true,
-            None,
-        )
-    };
+    let vision = s.settings.vision;
+    if vision == Vision::Normal {
+        // SAFETY: plain drawing; `respectFlipped` keeps the image upright in the flipped view.
+        unsafe {
+            o.image.drawInRect_fromRect_operation_fraction_respectFlipped_hints(
+                dest,
+                src,
+                NSCompositingOperation::Copy,
+                1.0,
+                true,
+                None,
+            )
+        };
+    } else {
+        // Each pixel as it looks with the simulated color vision.
+        let f = &o.shot.frame;
+        for j in 0..n {
+            for i in 0..n {
+                let (px, py) = (x as isize + i as isize - radius as isize, y as isize + j as isize - radius as isize);
+                if px < 0 || py < 0 || px as usize >= f.width || py as usize >= f.height {
+                    continue;
+                }
+                let [r, g, b] = vision.simulate(f.pixel(px as usize, py as usize));
+                NSColor::colorWithSRGBRed_green_blue_alpha(
+                    f64::from(r) / 255.0,
+                    f64::from(g) / 255.0,
+                    f64::from(b) / 255.0,
+                    1.0,
+                )
+                .setFill();
+                NSBezierPath::fillRect(NSRect::new(
+                    NSPoint::new(origin.x + i as f64 * zoom, origin.y + j as f64 * zoom),
+                    NSSize::new(zoom, zoom),
+                ));
+            }
+        }
+    }
     // Pixel grid, when the pixels are big enough to see it.
     let grid = NSBezierPath::bezierPath();
     grid.setLineWidth(0.5);
@@ -396,16 +446,22 @@ pub(super) fn draw_loupe(s: &Session, o: &Overlay, x: usize, y: usize, cursor: N
         f => f,
     };
     let at = |px: usize| format_length(px, o.scale, s.in_pixels());
-    let text = format!("{}   {}, {}", format.format(o.shot.frame.pixel(x, y)), at(x), at(y));
+    let mut text = format!("{}   {}, {}", format.format(o.shot.frame.pixel(x, y)), at(x), at(y));
+    if s.settings.vision != Vision::Normal {
+        let name = s.settings.vision.name();
+        text.push_str("   ");
+        text.push_str(name.split(' ').next().unwrap_or(name));
+    }
     pill(&text, NSPoint::new(origin.x, origin.y + side + 5.0), o.size, 11.0, &dark());
 }
 
 pub(super) const HINTS: [&str; 3] = [
-    "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  ⇧: crosshair, square, 45°  ·  Click: keep  ·  \
-     V H: guides  ·  ⌥ arrows: next edge",
+    "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  \
+     Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge",
     "X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  \
-     P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast",
-    "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done",
+     ⇧Z vision  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast",
+    "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  \
+     R restore  ·  ? hints  ·  Esc done",
 ];
 
 pub(super) fn draw(index: usize) {
@@ -415,7 +471,8 @@ pub(super) fn draw(index: usize) {
         let Some(o) = s.overlays.get(index) else { return };
         let rgb = s.settings.rgb();
 
-        if s.settings.freeze && !s.kept {
+        // A screenshot with measurements has the screen behind them.
+        if (s.settings.freeze && !s.kept) || s.exporting {
             o.image.drawInRect(NSRect::new(NSPoint::new(0.0, 0.0), o.size));
         }
 
@@ -426,21 +483,25 @@ pub(super) fn draw(index: usize) {
                 Item::Area(r) => draw_area(s, o, *r, rgb),
                 Item::Cross { x, y, cross, axes } => draw_cross(s, o, *x, *y, cross, *axes, rgb),
                 Item::Line { x0, y0, x1, y1 } => draw_line(s, o, (*x0, *y0, *x1, *y1), rgb),
+                Item::Circle { cx, cy, r } => draw_circle(s, o, (*cx, *cy, *r), rgb),
                 Item::VerticalGuide { .. } | Item::HorizontalGuide { .. } => {}
             }
         }
 
-        if s.kept {
+        if s.kept || s.exporting {
             return;
         }
 
         if index == s.active {
             if let Some(d) = s.drag {
-                if d.line {
-                    let px = |v: f64| v * o.scale;
-                    draw_line(s, o, (px(d.start.x), px(d.start.y), px(d.end.x), px(d.end.y)), rgb);
-                } else {
-                    draw_area(s, o, o.rect_px(d.start, d.end), rgb);
+                let px = |v: f64| v * o.scale;
+                match d.tool {
+                    Tool::Line => draw_line(s, o, (px(d.start.x), px(d.start.y), px(d.end.x), px(d.end.y)), rgb),
+                    Tool::Circle => {
+                        let r = line_length(d.end.x - d.start.x, d.end.y - d.start.y);
+                        draw_circle(s, o, (px(d.start.x), px(d.start.y), px(r)), rgb);
+                    }
+                    Tool::Area => draw_area(s, o, o.rect_px(d.start, d.end), rgb),
                 }
             } else if let Some(p) = s.hover {
                 let (x, y) = o.px(p);

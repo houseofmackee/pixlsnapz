@@ -3,8 +3,9 @@
 
 use std::cell::RefCell;
 
+use block2::RcBlock;
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, ProtocolObject};
+use objc2::runtime::{AnyObject, Bool, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSAlert, NSAlertFirstButtonReturn, NSAlertStyle, NSApplication, NSApplicationActivationPolicy,
@@ -12,9 +13,12 @@ use objc2_app_kit::{
     NSRunningApplication, NSStatusBar, NSStatusItem, NSVariableStatusItemLength, NSWorkspace,
     NSWorkspaceApplicationKey, NSWorkspaceDidActivateApplicationNotification,
 };
-use objc2_foundation::{NSDistributedNotificationCenter, NSNotification, NSObject, NSObjectProtocol, NSString, NSURL};
+use objc2_foundation::{
+    NSDistributedNotificationCenter, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
+    NSURL,
+};
 
-use crate::color::ColorFormat;
+use crate::color::{ColorFormat, ColorHistory};
 use crate::hotkeys::{HotkeyAction, Hotkeys};
 use crate::overlay::{self, StartError};
 use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, Settings, TOLERANCE_STEPS, Units};
@@ -42,6 +46,8 @@ const ABOUT: isize = 11;
 const QUIT: isize = 12;
 const SETTINGS: isize = 13;
 const CLEAR_KEPT: isize = 14;
+const TOGGLE_APP: isize = 15;
+const CLEAR_COLORS: isize = 16;
 const UNITS_BASE: isize = 100;
 const TOLERANCE_BASE: isize = 200;
 const COLOR_BASE: isize = 300;
@@ -49,6 +55,7 @@ const FORMAT_BASE: isize = 400;
 const AXES_BASE: isize = 500;
 const ZOOM_BASE: isize = 600;
 const GRID_BASE: isize = 700;
+const RECENT_BASE: isize = 800;
 const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
 
 define_class!(
@@ -77,9 +84,16 @@ define_class!(
             if app.processIdentifier() == std::process::id() as i32 {
                 return;
             }
-            let name = app.bundleIdentifier().map(|id| id.to_string()).unwrap_or_default();
-            tracing::debug!("{name} became active");
+            let front = front_app_of(&app);
+            tracing::debug!("{} became active", front.as_ref().map_or("?", |f| f.0.as_str()));
+            APP.with(|a| {
+                if let Some(a) = a.borrow_mut().as_mut() {
+                    a.front_app = front;
+                }
+            });
             overlay::end_measuring();
+            // The shortcut may be turned off in this app.
+            register_hotkey();
         }
 
         #[unsafe(method(remoteSettings:))]
@@ -112,6 +126,17 @@ struct App {
     hotkeys: Hotkeys,
     settings: Settings,
     registered: Option<Shortcut>,
+    /// A shortcut is being recorded in Settings: leave the hotkey off.
+    suspended: bool,
+    /// The app in front (bundle identifier and name), other than PixlSnapz.
+    front_app: Option<(String, String)>,
+}
+
+/// The bundle identifier and name of `app`.
+fn front_app_of(app: &NSRunningApplication) -> Option<(String, String)> {
+    let id = app.bundleIdentifier()?.to_string();
+    let name = app.localizedName().map_or_else(|| id.clone(), |n| n.to_string());
+    Some((id, name))
 }
 
 thread_local! {
@@ -171,8 +196,15 @@ pub fn run() -> anyhow::Result<()> {
     let first_launch = !Settings::path().exists();
     let settings = Settings::load();
     APP.with(|a| {
-        *a.borrow_mut() =
-            Some(App { target, _status_item: status_item, hotkeys: Hotkeys::install(), settings, registered: None })
+        *a.borrow_mut() = Some(App {
+            target,
+            _status_item: status_item,
+            hotkeys: Hotkeys::install(),
+            settings,
+            registered: None,
+            suspended: false,
+            front_app: NSWorkspace::sharedWorkspace().frontmostApplication().and_then(|a| front_app_of(&a)),
+        })
     });
     register_hotkey();
     if first_launch {
@@ -187,13 +219,24 @@ fn register_hotkey() {
     let failed = APP.with(|a| {
         let mut a = a.borrow_mut();
         let a = a.as_mut()?;
-        let shortcut = a.settings.shortcut();
-        if a.registered == Some(shortcut) {
+        if a.suspended {
             return None;
         }
-        let failed = a.hotkeys.set(&[(HotkeyAction::Measure, shortcut)]);
-        a.registered = Some(shortcut);
-        failed.first().copied()
+        let shortcut = a.settings.shortcut();
+        // Left to the app in front when it is one the shortcut is off in.
+        let off_here = a.front_app.as_ref().is_some_and(|(id, _)| !a.settings.shortcut_enabled_in(id));
+        let wanted = (!off_here).then_some(shortcut);
+        if a.registered == wanted {
+            return None;
+        }
+        a.registered = wanted;
+        match wanted {
+            Some(shortcut) => a.hotkeys.set(&[(HotkeyAction::Measure, shortcut)]).first().copied(),
+            None => {
+                a.hotkeys.set(&[]);
+                None
+            }
+        }
     });
     if let Some(shortcut) = failed {
         alert(
@@ -213,12 +256,18 @@ pub fn suspend_hotkey() {
         if let Some(a) = a.borrow_mut().as_mut() {
             a.hotkeys.set(&[]);
             a.registered = None;
+            a.suspended = true;
         }
     });
 }
 
 /// Registers the shortcut from the settings again.
 pub fn resume_hotkey() {
+    APP.with(|a| {
+        if let Some(a) = a.borrow_mut().as_mut() {
+            a.suspended = false;
+        }
+    });
     reload_settings();
 }
 
@@ -397,6 +446,31 @@ fn build_menu(menu: &NSMenu, target: &Target) {
     if overlay::has_kept() {
         item(menu, "Clear Kept Measurements", CLEAR_KEPT, target);
     }
+    let front = APP.with(|a| a.borrow().as_ref().and_then(|a| a.front_app.clone()));
+    if let Some((id, name)) = front {
+        let title = if s.shortcut_enabled_in(&id) {
+            format!("Turn Off Shortcut in {name}")
+        } else {
+            format!("Turn On Shortcut in {name}")
+        };
+        item(menu, &title, TOGGLE_APP, target);
+    }
+    let recent = submenu(menu, "Recent Colors");
+    let history = ColorHistory::load_from(&ColorHistory::path());
+    if history.colors.is_empty() {
+        // No action: shown disabled.
+        recent.addItem(&NSMenuItem::new(mtm));
+        if let Some(empty) = recent.itemAtIndex(0) {
+            empty.setTitle(&NSString::from_str("No Colors Yet"));
+        }
+    } else {
+        for (i, rgb) in history.colors.iter().enumerate() {
+            let it = item(&recent, &s.color_format.format(*rgb), RECENT_BASE + i as isize, target);
+            it.setImage(Some(&swatch(*rgb)));
+        }
+        recent.addItem(&NSMenuItem::separatorItem(mtm));
+        item(&recent, "Clear Recent Colors", CLEAR_COLORS, target);
+    }
     menu.addItem(&NSMenuItem::separatorItem(mtm));
 
     let units = submenu(menu, "Units");
@@ -447,6 +521,37 @@ fn build_menu(menu: &NSMenu, target: &Target) {
     quit.setKeyEquivalent(&NSString::from_str("q"));
 }
 
+/// A small rounded square of `rgb`, for menus.
+fn swatch(rgb: [u8; 3]) -> Retained<NSImage> {
+    let draw = RcBlock::new(move |rect: NSRect| {
+        let inner = NSRect::new(
+            NSPoint::new(rect.origin.x + 0.5, rect.origin.y + 0.5),
+            NSSize::new(rect.size.width - 1.0, rect.size.height - 1.0),
+        );
+        let path = objc2_app_kit::NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(inner, 3.0, 3.0);
+        objc2_app_kit::NSColor::colorWithSRGBRed_green_blue_alpha(
+            f64::from(rgb[0]) / 255.0,
+            f64::from(rgb[1]) / 255.0,
+            f64::from(rgb[2]) / 255.0,
+            1.0,
+        )
+        .setFill();
+        path.fill();
+        objc2_app_kit::NSColor::colorWithWhite_alpha(0.5, 0.5).setStroke();
+        path.setLineWidth(0.5);
+        path.stroke();
+        Bool::YES
+    });
+    NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(14.0, 14.0), false, &draw)
+}
+
+fn copy_to_clipboard(text: &str) {
+    let pasteboard = objc2_app_kit::NSPasteboard::generalPasteboard();
+    pasteboard.clearContents();
+    // SAFETY: a static constant.
+    pasteboard.setString_forType(&NSString::from_str(text), unsafe { objc2_app_kit::NSPasteboardTypeString });
+}
+
 fn menu_action(tag: isize) {
     let mtm = mtm();
     match tag {
@@ -476,6 +581,25 @@ fn menu_action(tag: isize) {
         OPEN_SETTINGS => open_settings_file(),
         SETTINGS => settings_window::show(mtm),
         CLEAR_KEPT => overlay::end(),
+        TOGGLE_APP => {
+            let front = APP.with(|a| a.borrow().as_ref().and_then(|a| a.front_app.clone()));
+            if let Some((id, _)) = front {
+                change_settings(|s| s.toggle_disabled_app(&id));
+                register_hotkey();
+            }
+        }
+        CLEAR_COLORS => {
+            if let Err(e) = ColorHistory::default().save_to(&ColorHistory::path()) {
+                tracing::warn!("clearing the color history: {e:#}");
+            }
+        }
+        t if (RECENT_BASE..RECENT_BASE + ColorHistory::MAX as isize).contains(&t) => {
+            let history = ColorHistory::load_from(&ColorHistory::path());
+            if let Some(rgb) = history.colors.get((t - RECENT_BASE) as usize) {
+                copy_to_clipboard(&settings().color_format.format(*rgb));
+                ColorHistory::remember(*rgb);
+            }
+        }
         PERMISSION => {
             if !capture::has_permission(true) {
                 open_url(SCREEN_RECORDING_SETTINGS);

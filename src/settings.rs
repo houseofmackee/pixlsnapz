@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::color::ColorFormat;
+use crate::color::{ColorFormat, Vision};
 use crate::shortcut::Shortcut;
 
 /// Tolerance steps offered in the menu and with [ and ] in the overlay.
@@ -179,6 +179,12 @@ pub struct Settings {
     pub grid_gutter: f64,
     /// Space left and right of the columns, in points.
     pub grid_margin: f64,
+    /// Draw the measurements into screenshots of areas.
+    pub stamp_screenshots: bool,
+    /// Color vision simulated in the loupe.
+    pub vision: Vision,
+    /// Bundle identifiers of apps in which the shortcut is left to the app.
+    pub disabled_apps: Vec<String>,
 }
 
 impl Default for Settings {
@@ -205,6 +211,9 @@ impl Default for Settings {
             grid_columns: 12,
             grid_gutter: 20.0,
             grid_margin: 0.0,
+            stamp_screenshots: true,
+            vision: Vision::Normal,
+            disabled_apps: Vec::new(),
         }
     }
 }
@@ -281,6 +290,21 @@ impl Settings {
                 Some(rest) => dirs::home_dir().unwrap_or_default().join(rest),
                 None => PathBuf::from(folder),
             }
+        }
+    }
+
+    /// Whether the shortcut is on while the app `bundle_id` is in front.
+    pub fn shortcut_enabled_in(&self, bundle_id: &str) -> bool {
+        !self.disabled_apps.iter().any(|a| a.eq_ignore_ascii_case(bundle_id))
+    }
+
+    /// Turns the shortcut off in `bundle_id`, or back on.
+    pub fn toggle_disabled_app(&mut self, bundle_id: &str) {
+        if self.shortcut_enabled_in(bundle_id) {
+            self.disabled_apps.push(bundle_id.to_string());
+            self.disabled_apps.sort();
+        } else {
+            self.disabled_apps.retain(|a| !a.eq_ignore_ascii_case(bundle_id));
         }
     }
 
@@ -387,6 +411,21 @@ mod tests {
         assert_eq!(Grid::Off.next().next().next(), Grid::Off);
         let s = Settings::from_toml("units = \"millimeters\"\ngrid = \"columns\"\n").unwrap();
         assert_eq!((s.units, s.grid, s.design_zoom), (Units::Millimeters, Grid::Columns, 100));
+    }
+
+    #[test]
+    fn disabled_apps() {
+        let mut s = Settings::default();
+        assert!(s.shortcut_enabled_in("com.figma.Desktop"));
+        s.toggle_disabled_app("com.figma.Desktop");
+        assert!(!s.shortcut_enabled_in("com.figma.desktop"));
+        assert!(s.shortcut_enabled_in("com.apple.Safari"));
+        s.toggle_disabled_app("com.figma.Desktop");
+        assert!(s.disabled_apps.is_empty());
+        let s = Settings::from_toml("disabled_apps = [\"com.a\", \"com.b\"]\nvision = \"tritanopia\"\n").unwrap();
+        assert!(!s.shortcut_enabled_in("com.b"));
+        assert_eq!(s.vision, Vision::Tritanopia);
+        assert!(s.stamp_screenshots);
     }
 
     #[test]

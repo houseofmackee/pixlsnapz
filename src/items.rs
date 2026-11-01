@@ -35,6 +35,12 @@ pub enum Item {
         x1: f64,
         y1: f64,
     },
+    /// A circle around a center, with its radius and diameter.
+    Circle {
+        cx: f64,
+        cy: f64,
+        r: f64,
+    },
 }
 
 impl Item {
@@ -133,6 +139,7 @@ mod tests {
                     },
                 ),
                 saved(1, 200, Item::Line { x0: 1.5, y0: 2.0, x1: 30.0, y1: 40.5 }),
+                saved(1, 200, Item::Circle { cx: 50.0, cy: 60.5, r: 25.25 }),
             ],
         };
         let dir = tempdir();

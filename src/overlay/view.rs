@@ -216,8 +216,9 @@ impl OverlayView {
         update(|s| {
             s.active = index;
             s.hover = Some(p);
-            // The line tool, or ⌥ held, draws a line instead of an area.
-            s.drag = Some(Drag { start: p, end: p, line: s.line_tool || option });
+            // ⌥ held draws a line whatever the tool.
+            let tool = if option { Tool::Line } else { s.tool };
+            s.drag = Some(Drag { start: p, end: p, tool });
         });
     }
 
@@ -237,8 +238,10 @@ impl OverlayView {
                     let (dx, dy) = (p.x - d.end.x, p.y - d.end.y);
                     d.start = NSPoint::new(d.start.x + dx, d.start.y + dy);
                     d.end = p;
-                } else if d.line {
+                } else if d.tool == Tool::Line {
                     d.end = if shift { snap_line(d.start, p) } else { p };
+                } else if d.tool == Tool::Circle {
+                    d.end = p;
                 } else {
                     d.end = if shift { square(d.start, p) } else { p };
                 }

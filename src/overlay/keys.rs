@@ -104,9 +104,21 @@ pub(super) fn key_down(event: &NSEvent) {
         (false, "p") if option => copy_average_color(),
         (false, "p") => copy_color(),
         (false, "l") => update(|s| {
-            s.line_tool = !s.line_tool;
-            s.toast(if s.line_tool { "Line tool: drag to measure length and angle" } else { "Area tool" });
+            s.tool = if s.tool == Tool::Line { Tool::Area } else { Tool::Line };
+            s.toast(if s.tool == Tool::Line { "Line tool: drag to measure length and angle" } else { "Area tool" });
         }),
+        (false, "e") => update(|s| {
+            s.tool = if s.tool == Tool::Circle { Tool::Area } else { Tool::Circle };
+            s.toast(if s.tool == Tool::Circle { "Circle tool: drag from the center" } else { "Area tool" });
+        }),
+        (false, "z") if shift => update(|s| {
+            s.settings.vision = s.settings.vision.next();
+            s.settings.loupe = true;
+            let name = s.settings.vision.name();
+            s.toast(format!("Loupe: {name}"));
+            s.save_settings();
+        }),
+        (false, "m") => toggle_setting("Measurements in screenshots", |st| &mut st.stamp_screenshots),
         (false, "x") => update(|s| {
             s.settings.axes = s.settings.axes.next();
             let name = s.settings.axes.name();

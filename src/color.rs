@@ -1,8 +1,12 @@
 //! Color formats for copying, and the average color of an area.
 
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::measure::{Frame, PxRect};
+use crate::settings::Settings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -85,13 +89,123 @@ pub fn hsl([r, g, b]: [u8; 3]) -> (u32, u32, u32) {
     ((h.round() as u32) % 360, (s * 100.0).round() as u32, (l * 100.0).round() as u32)
 }
 
+fn to_linear(v: u8) -> f64 {
+    let c = f64::from(v) / 255.0;
+    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+}
+
+fn to_srgb(l: f64) -> u8 {
+    let l = l.clamp(0.0, 1.0);
+    let c = if l <= 0.003_130_8 { l * 12.92 } else { 1.055 * l.powf(1.0 / 2.4) - 0.055 };
+    (c * 255.0).round() as u8
+}
+
+/// A color vision deficiency to simulate in the loupe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Vision {
+    #[default]
+    Normal,
+    /// No red cones.
+    Protanopia,
+    /// No green cones.
+    Deuteranopia,
+    /// No blue cones.
+    Tritanopia,
+    /// No color at all.
+    Achromatopsia,
+}
+
+impl Vision {
+    pub const ALL: [Vision; 5] =
+        [Vision::Normal, Vision::Protanopia, Vision::Deuteranopia, Vision::Tritanopia, Vision::Achromatopsia];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Vision::Normal => "Normal vision",
+            Vision::Protanopia => "Protanopia (red-blind)",
+            Vision::Deuteranopia => "Deuteranopia (green-blind)",
+            Vision::Tritanopia => "Tritanopia (blue-blind)",
+            Vision::Achromatopsia => "Achromatopsia (no color)",
+        }
+    }
+
+    pub fn next(self) -> Vision {
+        let i = Vision::ALL.iter().position(|v| *v == self).unwrap_or(0);
+        Vision::ALL[(i + 1) % Vision::ALL.len()]
+    }
+
+    /// How `rgb` looks with this vision: Machado, Oliveira and Fernandes
+    /// (2009) at full severity, applied in linear RGB.
+    pub fn simulate(self, rgb: [u8; 3]) -> [u8; 3] {
+        let m: [[f64; 3]; 3] = match self {
+            Vision::Normal => return rgb,
+            Vision::Achromatopsia => {
+                let y = to_srgb(luminance(rgb));
+                return [y, y, y];
+            }
+            Vision::Protanopia => {
+                [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]]
+            }
+            Vision::Deuteranopia => {
+                [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]]
+            }
+            Vision::Tritanopia => {
+                [[1.255528, -0.076749, -0.178779], [-0.078411, 0.930809, 0.147602], [0.004733, 0.691367, 0.303900]]
+            }
+        };
+        let lin = rgb.map(to_linear);
+        let row = |r: [f64; 3]| to_srgb(r[0] * lin[0] + r[1] * lin[1] + r[2] * lin[2]);
+        [row(m[0]), row(m[1]), row(m[2])]
+    }
+}
+
+/// Recently copied colors, newest first, kept between launches.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ColorHistory {
+    #[serde(default)]
+    pub colors: Vec<[u8; 3]>,
+}
+
+impl ColorHistory {
+    pub const MAX: usize = 20;
+
+    pub fn path() -> PathBuf {
+        Settings::path().with_file_name("colors.toml")
+    }
+
+    pub fn load_from(path: &Path) -> ColorHistory {
+        std::fs::read_to_string(path).ok().and_then(|t| toml::from_str(&t).ok()).unwrap_or_default()
+    }
+
+    pub fn save_to(&self, path: &Path) -> Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        }
+        std::fs::write(path, toml::to_string(self)?).with_context(|| format!("writing {}", path.display()))
+    }
+
+    /// Puts `rgb` first, without duplicates, keeping at most `MAX` colors.
+    pub fn push(&mut self, rgb: [u8; 3]) {
+        self.colors.retain(|c| *c != rgb);
+        self.colors.insert(0, rgb);
+        self.colors.truncate(ColorHistory::MAX);
+    }
+
+    /// Adds `rgb` to the saved history.
+    pub fn remember(rgb: [u8; 3]) {
+        let path = ColorHistory::path();
+        let mut history = ColorHistory::load_from(&path);
+        history.push(rgb);
+        if let Err(e) = history.save_to(&path) {
+            tracing::warn!("saving the color history: {e:#}");
+        }
+    }
+}
+
 /// Relative luminance of an sRGB color (WCAG 2).
 pub fn luminance(rgb: [u8; 3]) -> f64 {
-    let lin = |v: u8| {
-        let c = f64::from(v) / 255.0;
-        if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
-    };
-    0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2])
+    0.2126 * to_linear(rgb[0]) + 0.7152 * to_linear(rgb[1]) + 0.0722 * to_linear(rgb[2])
 }
 
 /// The WCAG contrast ratio of two colors, from 1 to 21.
@@ -181,6 +295,44 @@ mod tests {
         assert_eq!(contrast_grade(3.2), "AA large");
         assert_eq!(contrast_grade(4.499), "AA large");
         assert_eq!(contrast_grade(2.9), "Fail");
+    }
+
+    #[test]
+    fn simulates_vision() {
+        for v in Vision::ALL {
+            // White, black and grays look the same to everyone.
+            for g in [0u8, 128, 255] {
+                let out = v.simulate([g, g, g]);
+                assert!(out.iter().all(|c| c.abs_diff(g) <= 2), "{v:?} changed gray {g} to {out:?}");
+            }
+        }
+        assert_eq!(Vision::Normal.simulate([200, 10, 30]), [200, 10, 30]);
+        // Without color, pure red is the gray of its luminance.
+        assert_eq!(Vision::Achromatopsia.simulate([255, 0, 0]), [127, 127, 127]);
+        // Red and green are hard to tell apart without red cones.
+        let red = Vision::Protanopia.simulate([255, 0, 0]);
+        let green = Vision::Protanopia.simulate([0, 255, 0]);
+        assert!(red[0].abs_diff(red[1]) < 40 && green[0].abs_diff(green[1]) < 40, "{red:?} {green:?}");
+        assert_eq!(Vision::Achromatopsia.next(), Vision::Normal);
+    }
+
+    #[test]
+    fn color_history() {
+        let mut h = ColorHistory::default();
+        for i in 0..25u8 {
+            h.push([i, 0, 0]);
+        }
+        assert_eq!(h.colors.len(), ColorHistory::MAX);
+        assert_eq!(h.colors[0], [24, 0, 0]);
+        h.push([10, 0, 0]);
+        assert_eq!(h.colors[0], [10, 0, 0]);
+        assert_eq!(h.colors.iter().filter(|c| **c == [10, 0, 0]).count(), 1);
+
+        let dir = std::env::temp_dir().join(format!("pixlsnapz-colors-{}", std::process::id()));
+        let path = dir.join("colors.toml");
+        h.save_to(&path).unwrap();
+        assert_eq!(ColorHistory::load_from(&path), h);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

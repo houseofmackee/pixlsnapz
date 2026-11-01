@@ -31,6 +31,13 @@ the GitHub release shows.
   through; the next session picks them up again.
 - A Settings window (⌘, in the menu) with every option and a shortcut
   recorder, and `pixlsnapz settings` to open it.
+- A circle tool (E): radius and diameter from the center.
+- Screenshots of areas include the measurements (M turns that off).
+- Recent Colors in the menu bar icon's menu: the last 20 copied colors.
+- The loupe can show how people with color vision deficiencies see the
+  screen (⇧Z).
+- The shortcut can be turned off in chosen apps, from the menu or
+  Settings, so they get the keys.
 
 ### Fixed
 

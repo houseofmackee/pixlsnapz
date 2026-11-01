@@ -12,7 +12,7 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_core_graphics::CGImage;
 use objc2_foundation::{NSDictionary, NSString};
 
-use crate::color::{average, contrast_text};
+use crate::color::{ColorHistory, average, contrast_text};
 use crate::measure::PxRect;
 
 pub(super) fn set_clipboard_string(text: &str) {
@@ -37,9 +37,11 @@ pub(super) fn copy_color() {
         let s = s.borrow();
         let s = s.as_ref()?;
         let (x, y) = s.hover_px()?;
-        Some(s.settings.color_format.format(s.overlays[s.active].shot.frame.pixel(x, y)))
+        let rgb = s.overlays[s.active].shot.frame.pixel(x, y);
+        Some((s.settings.color_format.format(rgb), rgb))
     });
-    if let Some(text) = text {
+    if let Some((text, rgb)) = text {
+        ColorHistory::remember(rgb);
         set_clipboard_string(&text);
         update(|s| s.toast(format!("Copied {text}")));
     }
@@ -58,6 +60,8 @@ pub(super) fn pick_contrast() {
                 s.toast("Contrast: point at the other color and press K");
             }
             Some(first) => {
+                ColorHistory::remember(first);
+                ColorHistory::remember(here);
                 let text = contrast_text(first, here);
                 s.toast(format!("Copied contrast {text}"));
                 copied = Some(text);
@@ -75,10 +79,11 @@ pub(super) fn copy_average_color() {
         let s = s.borrow();
         let s = s.as_ref()?;
         let (i, r) = s.last_area()?;
-        average(&s.overlays[i].shot.frame, r).map(|c| s.settings.color_format.format(c))
+        average(&s.overlays[i].shot.frame, r).map(|c| (s.settings.color_format.format(c), c))
     });
     match text {
-        Some(text) => {
+        Some((text, rgb)) => {
+            ColorHistory::remember(rgb);
             set_clipboard_string(&text);
             update(|s| s.toast(format!("Copied average {text}")));
         }
@@ -86,24 +91,41 @@ pub(super) fn copy_average_color() {
     }
 }
 
+/// Room around an area for its labels when measurements are drawn into a
+/// screenshot (points).
+const STAMP_MARGIN: f64 = 64.0;
+
 /// Saves (or copies) a PNG of the last area, or of the display when there is
-/// none. Option toggles padding around the area.
+/// none, with the measurements drawn in unless that is turned off (M).
+/// Option toggles padding around the area.
 pub(super) fn screenshot(save: bool, padded: bool) {
-    let result: Option<(Vec<u8>, PathBuf)> = SESSION.with(|s| {
+    let plan = SESSION.with(|s| {
         let s = s.borrow();
         let s = s.as_ref()?;
         let (i, r) = s.screenshot_area()?;
         let o = &s.overlays[i];
-        let pad = if padded { (SCREENSHOT_PADDING * o.scale) as usize } else { 0 };
+        let stamp = s.settings.stamp_screenshots && !s.items.is_empty();
+        let mut pad = if padded { SCREENSHOT_PADDING } else { 0.0 };
+        if stamp {
+            pad = pad.max(STAMP_MARGIN);
+        }
+        let pad = (pad * o.scale) as usize;
         let r = o.shot.frame.clamp(PxRect {
             x0: r.x0.saturating_sub(pad),
             y0: r.y0.saturating_sub(pad),
             x1: r.x1 + pad,
             y1: r.y1 + pad,
         });
-        let png = png_of(&o.shot.image, r)?;
-        Some((png, s.settings.screenshot_dir()))
+        Some((i, r, stamp, o.view.clone(), o.rect_pt(r), s.settings.screenshot_dir()))
     });
+    let png = plan.as_ref().and_then(|(i, r, stamp, view, rect, _)| {
+        if *stamp {
+            stamped_png(view, *rect)
+        } else {
+            SESSION.with(|s| png_of(&s.borrow().as_ref()?.overlays[*i].shot.image, *r))
+        }
+    });
+    let result: Option<(Vec<u8>, PathBuf)> = png.zip(plan.map(|p| p.5));
     let Some((png, dir)) = result else {
         update(|s| s.toast("Could not take the screenshot"));
         return;
@@ -126,6 +148,29 @@ pub(super) fn screenshot(save: bool, padded: bool) {
         pasteboard.setData_forType(Some(&data), unsafe { NSPasteboardTypePNG });
         update(|s| s.toast("Screenshot copied"));
     }
+}
+
+/// Renders `rect` (points) of `view` in export mode: the screenshot with the
+/// kept measurements on it, without the pointer, hints, or messages.
+fn stamped_png(view: &OverlayView, rect: NSRect) -> Option<Vec<u8>> {
+    SESSION.with(|s| {
+        if let Some(s) = s.borrow_mut().as_mut() {
+            s.exporting = true;
+        }
+    });
+    // Drawing happens right here, through drawRect: (no session borrow held).
+    let rep = view.bitmapImageRepForCachingDisplayInRect(rect);
+    if let Some(rep) = &rep {
+        view.cacheDisplayInRect_toBitmapImageRep(rect, rep);
+    }
+    SESSION.with(|s| {
+        if let Some(s) = s.borrow_mut().as_mut() {
+            s.exporting = false;
+        }
+    });
+    // SAFETY: an empty properties dictionary.
+    let data = unsafe { rep?.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new()) }?;
+    Some(data.to_vec())
 }
 
 pub(super) fn png_of(image: &CGImage, r: PxRect) -> Option<Vec<u8>> {

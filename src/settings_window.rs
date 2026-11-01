@@ -15,14 +15,14 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString};
 
-use crate::color::ColorFormat;
+use crate::color::{ColorFormat, Vision};
 use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, LOUPE_ZOOMS, Settings, Units};
 use crate::shortcut::{CMD, CONTROL, OPTION, SHIFT, Shortcut};
 
 const WIDTH: f64 = 540.0;
 /// Height of all the settings; the window is shorter (and scrolls) when the
 /// screen is.
-const CONTENT_HEIGHT: f64 = 870.0;
+const CONTENT_HEIGHT: f64 = 990.0;
 /// The shortest the window gets.
 const MIN_HEIGHT: f64 = 320.0;
 const LABEL_WIDTH: f64 = 190.0;
@@ -50,6 +50,18 @@ define_class!(
         #[unsafe(method(chooseFolder:))]
         fn choose_folder(&self, _sender: Option<&AnyObject>) {
             choose_folder();
+        }
+
+        #[unsafe(method(addApp:))]
+        fn add_app(&self, _sender: Option<&AnyObject>) {
+            add_disabled_app();
+        }
+
+        #[unsafe(method(clearApps:))]
+        fn clear_apps(&self, _sender: Option<&AnyObject>) {
+            let mut s = Settings::load();
+            s.disabled_apps.clear();
+            save_and_refresh(&s);
         }
 
         #[unsafe(method(openFile:))]
@@ -102,6 +114,9 @@ struct Controls {
     grid_gutter: Retained<NSTextField>,
     grid_margin: Retained<NSTextField>,
     folder: Retained<NSTextField>,
+    disabled_apps: Retained<NSTextField>,
+    vision: Retained<NSPopUpButton>,
+    stamp: Retained<NSButton>,
 }
 
 struct SettingsWindow {
@@ -264,6 +279,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     let loupe_zooms: Vec<String> = LOUPE_ZOOMS.iter().map(|z| format!("{z}×")).collect();
     let loupe_zooms: Vec<&str> = loupe_zooms.iter().map(String::as_str).collect();
     let grids: Vec<&str> = Grid::ALL.iter().map(|g| g.name()).collect();
+    let visions: Vec<&str> = Vision::ALL.iter().map(|v| v.name()).collect();
 
     let c = Controls {
         shortcut: button("", sel!(recordShortcut:), t, mtm),
@@ -299,14 +315,25 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
         grid_gutter: number_field(t, mtm),
         grid_margin: number_field(t, mtm),
         folder: NSTextField::labelWithString(&ns(""), mtm),
+        disabled_apps: NSTextField::labelWithString(&ns(""), mtm),
+        vision: popup(&visions, t, mtm),
+        stamp: checkbox("Draw the measurements into screenshots", t, mtm),
     };
     c.ppi.setPlaceholderString(Some(&ns("Automatic")));
     c.folder.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingMiddle);
+    c.disabled_apps.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingTail);
 
     l.section("General");
     l.row("Measure shortcut:", &c.shortcut, 220.0);
     l.plain(&c.login, 280.0);
     l.plain(&c.hints, 280.0);
+    l.row("Shortcut off in:", &c.disabled_apps, 130.0);
+    let add = button("Add App…", sel!(addApp:), t, mtm);
+    add.setFrame(rect(LABEL_WIDTH + 165.0, l.top, 90.0, 30.0));
+    l.view.addSubview(&add);
+    let clear = button("Clear", sel!(clearApps:), t, mtm);
+    clear.setFrame(rect(LABEL_WIDTH + 255.0, l.top, 70.0, 30.0));
+    l.view.addSubview(&clear);
 
     l.section("Measuring");
     l.row("Units:", &c.units, 160.0);
@@ -326,6 +353,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     l.row("Copy colors as:", &c.color_format, 160.0);
     l.plain(&c.loupe, 280.0);
     l.row("Loupe zoom:", &c.loupe_zoom, 100.0);
+    l.row("Loupe vision:", &c.vision, 230.0);
 
     l.section("Grid (O while measuring)");
     l.row("Grid:", &c.grid, 160.0);
@@ -339,6 +367,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     let choose = button("Choose…", sel!(chooseFolder:), t, mtm);
     choose.setFrame(rect(LABEL_WIDTH + 240.0, l.top, 100.0, 30.0));
     l.view.addSubview(&choose);
+    l.plain(&c.stamp, 300.0);
 
     let open = button("Open Settings File", sel!(openFile:), t, mtm);
     open.setFrame(rect(WIDTH - 190.0, 16.0, 170.0, 30.0));
@@ -409,6 +438,12 @@ pub fn refresh() {
         c.grid_gutter.setStringValue(&ns(&number_text(s.grid_gutter)));
         c.grid_margin.setStringValue(&ns(&number_text(s.grid_margin)));
         c.folder.setStringValue(&ns(&s.screenshot_dir().display().to_string()));
+        let apps: Vec<String> = s.disabled_apps.iter().map(|id| app_name(id)).collect();
+        let apps = if apps.is_empty() { "No apps".to_string() } else { apps.join(", ") };
+        c.disabled_apps.setStringValue(&ns(&apps));
+        c.disabled_apps.setToolTip(Some(&ns(&s.disabled_apps.join("\n"))));
+        c.vision.selectItemAtIndex(Vision::ALL.iter().position(|v| *v == s.vision).unwrap_or(0) as isize);
+        set_check(&c.stamp, s.stamp_screenshots);
     });
 }
 
@@ -450,6 +485,8 @@ fn controls_changed() {
         s.grid_columns = (positive(&c.grid_columns, f64::from(s.grid_columns)).round() as u32).clamp(1, 48);
         s.grid_gutter = positive(&c.grid_gutter, s.grid_gutter);
         s.grid_margin = positive(&c.grid_margin, s.grid_margin);
+        s.vision = selected(&c.vision, &Vision::ALL, s.vision);
+        s.stamp_screenshots = is_on(&c.stamp);
         Some(is_on(&c.login))
     });
     let Some(login) = login else { return };
@@ -532,6 +569,51 @@ fn finish_recording(shortcut: Option<Shortcut>) {
     }
     crate::app::resume_hotkey();
     refresh();
+}
+
+/// An app's name from its bundle identifier, or the identifier itself.
+fn app_name(bundle_id: &str) -> String {
+    objc2_app_kit::NSWorkspace::sharedWorkspace()
+        .URLForApplicationWithBundleIdentifier(&ns(bundle_id))
+        .and_then(|url| url.lastPathComponent())
+        .map(|n| n.to_string().trim_end_matches(".app").to_string())
+        .unwrap_or_else(|| bundle_id.to_string())
+}
+
+fn save_and_refresh(s: &Settings) {
+    if let Err(e) = s.save() {
+        tracing::warn!("saving settings: {e:#}");
+    }
+    crate::app::settings_updated();
+    refresh();
+}
+
+/// Adds an app, chosen in Applications, to those the shortcut is off in.
+fn add_disabled_app() {
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let panel = NSOpenPanel::openPanel(mtm);
+    panel.setCanChooseDirectories(false);
+    panel.setCanChooseFiles(true);
+    panel.setTreatsFilePackagesAsDirectories(false);
+    panel.setDirectoryURL(Some(&objc2_foundation::NSURL::fileURLWithPath(&ns("/Applications"))));
+    panel.setPrompt(Some(&ns("Turn Off Shortcut")));
+    panel.setMessage(Some(&ns("Choose an app in which the measure shortcut is left to the app.")));
+    if panel.runModal() != NSModalResponseOK {
+        return;
+    }
+    let Some(path) = panel.URL().and_then(|u| u.path()) else { return };
+    let id = objc2_foundation::NSBundle::bundleWithPath(&path).and_then(|b| b.bundleIdentifier());
+    match id {
+        Some(id) => {
+            let mut s = Settings::load();
+            let id = id.to_string();
+            if s.shortcut_enabled_in(&id) {
+                s.toggle_disabled_app(&id);
+            }
+            save_and_refresh(&s);
+        }
+        None => crate::app::show_alert("Not an app", &format!("{path} has no bundle identifier.")),
+    }
 }
 
 fn choose_folder() {

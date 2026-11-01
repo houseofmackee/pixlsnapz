@@ -17,12 +17,21 @@ use crate::measure::{
 };
 use crate::settings::{Axes, Settings, Units};
 
+/// What dragging measures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Tool {
+    Area,
+    /// Length and angle (L, or ⌥-drag).
+    Line,
+    /// Radius and diameter from the center (E).
+    Circle,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Drag {
     pub(super) start: NSPoint,
     pub(super) end: NSPoint,
-    /// Draws a line rather than an area.
-    pub(super) line: bool,
+    pub(super) tool: Tool,
 }
 
 pub(super) struct Overlay {
@@ -82,7 +91,9 @@ pub(super) struct Session {
     pub(super) items: Vec<(usize, Item)>,
     pub(super) toast: Option<(String, Instant)>,
     /// The line tool is on (L).
-    pub(super) line_tool: bool,
+    pub(super) tool: Tool,
+    /// Drawing for a screenshot: the screen and kept items only.
+    pub(super) exporting: bool,
     /// Scrolling not yet turned into tolerance steps.
     pub(super) scroll: f64,
     /// Settings changed by scrolling, saved when measuring ends.
@@ -121,6 +132,11 @@ impl Session {
     pub(super) fn line_texts(&self, (x0, y0, x1, y1): (f64, f64, f64, f64), scale: &Scale) -> (String, String) {
         let (dx, dy) = (x1 - x0, y1 - y0);
         (self.len_text_f64(line_length(dx, dy), scale), format_angle(line_angle(dx, dy)))
+    }
+
+    /// "r 50 · ⌀ 100" for a circle of radius `r` pixels.
+    pub(super) fn circle_text(&self, r: f64, scale: &Scale) -> String {
+        format!("r {}  ·  ⌀ {}", self.len_text_f64(r, scale), self.len_text_f64(2.0 * r, scale))
     }
 
     pub(super) fn scrolled(&mut self, steps: f64) {
@@ -186,8 +202,11 @@ impl Session {
         let item = if moved < CLICK_SLOP {
             let (x, y) = o.px(end);
             Item::Cross { x, y, cross: self.cross_at(index, x, y), axes: self.settings.axes }
-        } else if d.line {
+        } else if d.tool == Tool::Line {
             Item::Line { x0: start.x * o.scale, y0: start.y * o.scale, x1: end.x * o.scale, y1: end.y * o.scale }
+        } else if d.tool == Tool::Circle {
+            let r = line_length(end.x - start.x, end.y - start.y) * o.scale;
+            Item::Circle { cx: start.x * o.scale, cy: start.y * o.scale, r }
         } else {
             let r = o.rect_px(start, end);
             let r =
@@ -224,6 +243,7 @@ impl Session {
                     let (len, angle) = self.line_texts((*x0, *y0, *x1, *y1), scale);
                     Some(format!("{len}, {angle}"))
                 }
+                Item::Circle { r, .. } => Some(self.circle_text(*r, scale)),
                 _ => None,
             }
         });
