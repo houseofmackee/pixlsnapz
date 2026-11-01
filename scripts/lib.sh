@@ -105,7 +105,9 @@ SPARKLE_SHA256=c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c
 
 sparkle_dir() {
     dir="target/sparkle/$SPARKLE_VERSION"
-    if [ ! -d "$dir/Sparkle.framework" ]; then
+    # Everything used must be there: CI's build cache can restore
+    # target/sparkle with some of these files left out.
+    if [ ! -d "$dir/Sparkle.framework" ] || [ ! -f "$dir/LICENSE" ] || [ ! -x "$dir/bin/sign_update" ]; then
         mkdir -p target/sparkle
         archive="target/sparkle/Sparkle-$SPARKLE_VERSION.tar.xz"
         curl -sSfL -o "$archive" \
@@ -117,6 +119,7 @@ sparkle_dir() {
         fi
         rm -rf "$dir.partial" && mkdir -p "$dir.partial"
         tar -xf "$archive" -C "$dir.partial"
+        rm -rf "$dir"
         mv "$dir.partial" "$dir"
     fi
     echo "$dir"
