@@ -140,7 +140,7 @@ jobs:
 
           Requires macOS 14 or later on Apple silicon. Checksums are in \`SHA256SUMS.txt\`.
 
-          From 0.1.1 on, PixlSnapz updates itself (Check for Updates… in the menu bar icon's menu). It is offered a version once that release is no longer a pre-release. PixlSnapz 0.1.0 cannot update itself: download 0.1.1 once by hand.
+          PixlSnapz updates itself (Check for Updates… in the menu bar icon's menu), or install it with Homebrew: \`brew install --cask houseofmackee/tap/pixlsnapz\`. PixlSnapz 0.1.0 cannot update itself: download this version once by hand.
           NOTES
           gh release create "$GITHUB_REF_NAME" --prerelease --generate-notes --notes-file "$notes" \
             --title "PixlSnapz $version" \

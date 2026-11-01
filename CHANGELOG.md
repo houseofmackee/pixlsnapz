@@ -7,25 +7,27 @@ the GitHub release shows.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-01
+
 ### Added
 
+- PixlSnapz speaks German, French, and Spanish, following the system
+  language (or the language set for PixlSnapz in System Settings >
+  General > Language & Region): the menu, Settings, alerts, messages, the
+  shortcut hints, and VoiceOver announcements. Measurements, color codes,
+  and anything copied stay as they are.
+- VoiceOver: every Settings control has a name; measuring announces kept
+  measurements, copies, and mode changes ("Kept 140 by 38"); and the
+  measurement under the pointer can be read on request.
+- With Increase Contrast or Reduce Transparency on, lines are twice as
+  thick and labels are opaque with an outline.
 - Homebrew: `brew install --cask houseofmackee/tap/pixlsnapz`, kept up to
-  date by each release.
-- `PIXLSNAPZ_SHOW_SETTINGS=<tab>` opens Settings at a tab on launch (for
-  screenshots and tests).
-- VoiceOver: every Settings control has a name, measuring announces kept
-  measurements, copies, and mode changes, and the measurement under the
-  pointer can be read on request.
-- With Increase Contrast or Reduce Transparency on, lines are thicker and
-  labels opaque with an outline.
-- German, French, and Spanish, following the system language: the menu,
-  Settings, alerts, messages, hints, and VoiceOver announcements.
-  Measurements and copied text stay as they are.
+  date with each release.
 
 ### Changed
 
 - Settings controls grow to fit their text, so longer translations are
-  not cut off.
+  never cut off.
 
 ## [0.1.1] - 2026-11-01
 
@@ -94,6 +96,7 @@ First release of PixlSnapz, a screen ruler for Apple silicon Macs
 - Freeze screen, aspect ratios, multiple displays, launch at login, and
   `pixlsnapz measure` and `pixlsnapz settings` for scripts and launchers.
 
-[Unreleased]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/houseofmackee/pixlsnapz/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/houseofmackee/pixlsnapz/releases/tag/v0.1.0

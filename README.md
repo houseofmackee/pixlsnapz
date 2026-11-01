@@ -69,11 +69,11 @@ PixlSnapz is in English, German, French, and Spanish, following the language set
 
 - VoiceOver reads every Settings control by its name, announces what happens while measuring (each kept measurement, copies, and mode changes, such as "Kept 140 by 38"), and can read the measurement under the pointer on request (the overlay's value).
 - With **Increase Contrast** or **Reduce Transparency** on (System Settings > Accessibility > Display), lines are twice as thick and labels are opaque with an outline.
-- Every action has a keyboard shortcut, and the overlay never animates.
+- Every tool, mode, and setting while measuring has a single-key shortcut, the arrow keys move the pointer by single pixels or jump from edge to edge, and the overlay never animates.
 
 ## Updates
 
-From 0.1.1 on, PixlSnapz updates itself with [Sparkle](https://sparkle-project.org): choose **Check for Updates…** in the menu bar icon's menu (it reads **Update to PixlSnapz X…** when a newer version was found), and turn automatic checks on or off in Settings > General. Updates are signed with PixlSnapz's own EdDSA key and the same Developer ID, so they install without warnings and keep the Screen Recording permission. New releases are published as pre-releases first; the update feed is the latest regular release's `appcast.xml`. Checking for updates contacts github.com and nothing else.
+From 0.1.1 on, PixlSnapz updates itself with [Sparkle](https://sparkle-project.org): choose **Check for Updates…** in the menu bar icon's menu (it reads **Update to PixlSnapz X…** when a newer version was found), and turn automatic checks on or off in Settings > General. Updates are signed with PixlSnapz's own EdDSA key and the same Developer ID, so they install without warnings and keep the Screen Recording permission. The update feed is the latest regular (not pre-release) release's `appcast.xml`. Checking for updates contacts github.com and nothing else.
 
 ## Usage
 
@@ -193,7 +193,7 @@ The edge detection (`src/measure.rs`), units (`src/units.rs`), and geometry (`sr
 - `src/updates.rs` loads Sparkle at runtime.
 - `src/i18n.rs` translates text: `t!("…")` for literals (with named `{placeholders}`), `n!("…")` for names translated where shown. The menu, Settings, and alert helpers translate the titles passed to them. `scripts/strings.py` collects all of it into `macos/en.lproj/Localizable.strings`, the template; translations are `macos/<language>.lproj/Localizable.strings` (plus `InfoPlist.strings` for the Screen Recording prompt). To add a language, copy the template there, translate the values, add the language to `CFBundleLocalizations` in `macos/Info.plist`, and run the checks: the Settings layout test also checks every translation for cut-off text.
 
-GitHub Actions runs `cargo fmt --check`, `cargo clippy -D warnings` (debug and release), `cargo test`, a bundle build, and `cargo deny check` on every push to main and every pull request.
+GitHub Actions runs `cargo fmt --check`, `cargo clippy -D warnings` (debug and release), `cargo test` (including both UI tests), `scripts/strings.py --check`, a bundle build, and `cargo deny check` on every push to main and every pull request.
 
 ### Releasing
 
@@ -203,7 +203,7 @@ Releases are built and published by GitHub Actions. Move the Unreleased notes in
 git tag vX.Y.Z && git push origin main vX.Y.Z
 ```
 
-`.github/workflows/release.yml` checks the tag matches `Cargo.toml`, signs with the Developer ID from the repository secrets `DEVELOPER_ID_P12_BASE64` and `DEVELOPER_ID_P12_PASSWORD`, notarizes the app and the DMG with the App Store Connect API key (`NOTARY_API_KEY_BASE64` secret; `APPLE_TEAM_ID`, `NOTARY_KEY_ID`, and `NOTARY_ISSUER_ID` variables), refuses to publish anything Gatekeeper would block, writes the update feed `appcast.xml` signed with the `SPARKLE_PRIVATE_KEY` secret (the EdDSA key in the login Keychain, account `pixlsnapz`; its public half is `SUPublicEDKey` in `macos/Info.plist`), and publishes the DMG, zip, `SHA256SUMS.txt`, and `appcast.xml` as a pre-release. Mark it as a regular release once the checks in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) are done.
+`.github/workflows/release.yml` checks the tag matches `Cargo.toml`, signs with the Developer ID from the repository secrets `DEVELOPER_ID_P12_BASE64` and `DEVELOPER_ID_P12_PASSWORD`, notarizes the app and the DMG with the App Store Connect API key (`NOTARY_API_KEY_BASE64` secret; `APPLE_TEAM_ID`, `NOTARY_KEY_ID`, and `NOTARY_ISSUER_ID` variables), refuses to publish anything Gatekeeper would block, writes the update feed `appcast.xml` signed with the `SPARKLE_PRIVATE_KEY` secret (the EdDSA key in the login Keychain, account `pixlsnapz`; its public half is `SUPublicEDKey` in `macos/Info.plist`), publishes the DMG, zip, `SHA256SUMS.txt`, and `appcast.xml` as a pre-release, and updates the Homebrew cask in [houseofmackee/homebrew-tap](https://github.com/houseofmackee/homebrew-tap) (with the `TAP_DEPLOY_KEY` deploy key). Installed copies are only offered a release once it is a regular release: mark it as one on GitHub, or with `gh release edit vX.Y.Z --prerelease=false --latest`, once the checks in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) are done.
 
 ## License
 
