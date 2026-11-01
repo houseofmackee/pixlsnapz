@@ -150,8 +150,13 @@ define_class!(
 
         #[unsafe(method(flagsChanged:))]
         fn flags_changed(&self, event: &NSEvent) {
-            let shift = event.modifierFlags().contains(NSEventModifierFlags::Shift);
-            update(|s| s.shift = shift);
+            let flags = event.modifierFlags();
+            let shift = flags.contains(NSEventModifierFlags::Shift);
+            let option = flags.contains(NSEventModifierFlags::Option);
+            update(|s| {
+                s.shift = shift;
+                s.option = option;
+            });
         }
     }
 
@@ -197,11 +202,14 @@ impl OverlayView {
         blank_cursor().set();
         let p = self.location(event);
         let index = self.index();
-        let shift = event.modifierFlags().contains(NSEventModifierFlags::Shift);
+        let flags = event.modifierFlags();
+        let shift = flags.contains(NSEventModifierFlags::Shift);
+        let option = flags.contains(NSEventModifierFlags::Option);
         update(|s| {
             s.active = index;
             s.hover = Some(p);
             s.shift = shift;
+            s.option = option;
         });
     }
 
@@ -216,9 +224,11 @@ impl OverlayView {
         update(|s| {
             s.active = index;
             s.hover = Some(p);
-            // ⌥ held draws a line whatever the tool.
+            // ⌥ held draws a line whatever the tool; otherwise a drag that
+            // starts on a kept item edits it.
             let tool = if option { Tool::Line } else { s.tool };
-            s.drag = Some(Drag { start: p, end: p, tool });
+            let edit = if option { None } else { s.hit_test(index, p) };
+            s.drag = Some(Drag { start: p, end: p, tool, edit });
         });
     }
 
@@ -232,7 +242,13 @@ impl OverlayView {
         update(|s| {
             s.shift = shift;
             let moving = s.moving;
-            if let Some(d) = s.drag.as_mut() {
+            if let Some(target) = s.drag.and_then(|d| d.edit) {
+                let from = s.drag.map_or(p, |d| d.end);
+                s.apply_edit(target, from, p);
+                if let Some(d) = s.drag.as_mut() {
+                    d.end = p;
+                }
+            } else if let Some(d) = s.drag.as_mut() {
                 if moving {
                     // Space held: move the whole rectangle.
                     let (dx, dy) = (p.x - d.end.x, p.y - d.end.y);
@@ -262,7 +278,17 @@ impl OverlayView {
             s.hover = Some(p);
             if let Some(d) = s.drag.take() {
                 let moved = (d.end.x - d.start.x).abs().max((d.end.y - d.start.y).abs());
-                if right && moved < CLICK_SLOP {
+                if let Some(target) = d.edit {
+                    // A click on an item without moving it keeps a distance
+                    // there, as anywhere else; an edit is announced.
+                    if moved < CLICK_SLOP {
+                        s.finish_drag(index, d, no_snap);
+                    } else if let Some(text) =
+                        s.items.get(target.item).and_then(|(i, item)| s.text_of(item, &s.overlays[*i].measure))
+                    {
+                        announce(&text);
+                    }
+                } else if right && moved < CLICK_SLOP {
                     close = true;
                 } else {
                     s.finish_drag(index, d, no_snap);

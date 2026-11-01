@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::color::{ColorFormat, Vision};
 use crate::shortcut::Shortcut;
+use crate::units::SizeFormat;
 
 /// Tolerance steps offered in the menu and with [ and ] in the overlay.
 /// Color choices offered in the menu.
@@ -189,6 +190,19 @@ pub struct Settings {
     /// Find edges on a smoothed screen, comparing neighboring pixels: for
     /// photos, compressed images, and gradients.
     pub smooth_edges: bool,
+    /// How ⌘C copies sizes.
+    pub size_format: SizeFormat,
+    /// The design overlay: an image file shown over the screen while
+    /// measuring, to compare a design with the real thing.
+    pub overlay_image: String,
+    pub overlay_visible: bool,
+    /// From 0 to 1.
+    pub overlay_opacity: f64,
+    /// Show the difference between the image and the screen instead.
+    pub overlay_difference: bool,
+    /// The image's top-left corner, in screen pixels.
+    pub overlay_x: f64,
+    pub overlay_y: f64,
 }
 
 impl Default for Settings {
@@ -219,6 +233,13 @@ impl Default for Settings {
             vision: Vision::Normal,
             disabled_apps: Vec::new(),
             smooth_edges: false,
+            size_format: SizeFormat::Plain,
+            overlay_image: String::new(),
+            overlay_visible: false,
+            overlay_opacity: 0.5,
+            overlay_difference: false,
+            overlay_x: 0.0,
+            overlay_y: 0.0,
         }
     }
 }
@@ -316,6 +337,19 @@ impl Settings {
     /// Moves the tolerance by `delta`, within 0 to 255.
     pub fn adjust_tolerance(&mut self, delta: i32) {
         self.tolerance = (i32::from(self.tolerance) + delta).clamp(0, 255) as u8;
+    }
+
+    /// The next overlay look: 25, 50, 75, and 100% opacity, then the
+    /// difference view, then 25% again.
+    pub fn step_overlay_look(&mut self) {
+        if self.overlay_difference {
+            self.overlay_difference = false;
+            self.overlay_opacity = 0.25;
+        } else if self.overlay_opacity >= 0.99 {
+            self.overlay_difference = true;
+        } else {
+            self.overlay_opacity = ((self.overlay_opacity * 4.0).floor() + 1.0).min(4.0) / 4.0;
+        }
     }
 
     /// The next design zoom preset up or down.
@@ -457,6 +491,24 @@ mod tests {
         s.design_zoom = 400;
         s.step_design_zoom(true);
         assert_eq!(s.design_zoom, 400);
+    }
+
+    #[test]
+    fn overlay_looks_cycle() {
+        let mut s = Settings::default();
+        assert_eq!(s.overlay_opacity, 0.5);
+        s.step_overlay_look();
+        assert_eq!(s.overlay_opacity, 0.75);
+        s.step_overlay_look();
+        assert_eq!(s.overlay_opacity, 1.0);
+        s.step_overlay_look();
+        assert!(s.overlay_difference);
+        s.step_overlay_look();
+        assert!(!s.overlay_difference);
+        assert_eq!(s.overlay_opacity, 0.25);
+        s.overlay_opacity = 0.3;
+        s.step_overlay_look();
+        assert_eq!(s.overlay_opacity, 0.5);
     }
 
     #[test]

@@ -28,6 +28,8 @@ Colors & Loupe | label | Guide color: |
 Colors & Loupe | popup | Pink | Guide color
 Colors & Loupe | label | Copy colors as: |
 Colors & Loupe | popup | Hex | Copy colors as
+Colors & Loupe | label | Copy sizes as: |
+Colors & Loupe | popup | Plain | Copy sizes as
 Colors & Loupe | button | Show the loupe | Show the loupe
 Colors & Loupe | label | Loupe zoom: |
 Colors & Loupe | popup | 8× | Loupe zoom

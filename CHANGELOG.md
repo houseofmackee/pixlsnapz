@@ -7,6 +7,25 @@ the GitHub release shows.
 
 ## [Unreleased]
 
+### Added
+
+- Hold ⌥ over a kept box to see its spacing to the nearest box, guide, or
+  screen edge on every side.
+- Kept boxes, lines, circles, guides, and points can be edited: hover one
+  to see its handles, drag a handle to resize or the outline to move.
+  ⌫ removes the item under the pointer.
+- T switches what ⌘C copies for sizes: plain, CSS, Tailwind, SwiftUI, or
+  CGSize (also in Settings and the menu).
+- A design overlay: lay a design image over the real app at 25% to 100%
+  opacity, or as a difference (I, ⇧I, ⌘ arrows, ⌘I; Design Overlay in
+  the menu).
+- ⌘E opens the last area, with its measurements, in CleanShotZ to
+  annotate.
+
+### Changed
+
+- The shortcut hints are four rows.
+
 ## [0.2.0] - 2026-11-01
 
 ### Added

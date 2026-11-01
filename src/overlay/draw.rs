@@ -5,8 +5,8 @@ use super::*;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2_app_kit::{
-    NSBezierPath, NSColor, NSFont, NSFontAttributeName, NSFontWeightMedium, NSFontWeightRegular,
-    NSForegroundColorAttributeName, NSStringDrawing,
+    NSBezierPath, NSColor, NSCompositingOperation, NSFont, NSFontAttributeName, NSFontWeightMedium,
+    NSFontWeightRegular, NSForegroundColorAttributeName, NSStringDrawing,
 };
 use objc2_foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString};
 
@@ -355,16 +355,117 @@ pub(super) fn draw_alignment(o: &Overlay, x: usize, y: usize, rgb: [f64; 3]) {
     path.stroke();
 }
 
-pub(super) const HINTS: [&str; 3] = [
+pub(super) const HINTS: [&str; 4] = [
     n!("Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  \
-     Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge"),
-    n!("X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  \
-     ⇧Z vision  ·  N smooth edges  ·  D ⇧D design zoom  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast"),
-    n!(
-        "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  \
-     R restore  ·  ? hints  ·  Esc done"
-    ),
+     Click: keep"),
+    n!("Drag a handle: edit  ·  ⌥ over a box: spacing  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  \
+     Scroll or [ ]: tolerance  ·  N smooth edges"),
+    n!("U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  \
+     I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast"),
+    n!("⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  \
+     B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done"),
 ];
+
+/// The design image over the screen, at its opacity or as a difference.
+fn draw_design_overlay(s: &Session, o: &Overlay) {
+    let Some((image, w, h)) = s.overlay_image.as_ref().filter(|_| s.settings.overlay_visible) else { return };
+    let st = &s.settings;
+    let dest = NSRect::new(
+        NSPoint::new(st.overlay_x / o.scale, st.overlay_y / o.scale),
+        NSSize::new(w / o.scale, h / o.scale),
+    );
+    let (operation, fraction) = if st.overlay_difference {
+        // The overlay window is transparent: to take the difference with
+        // the screen, the screen must be drawn into it first.
+        if !st.freeze {
+            o.image.drawInRect(NSRect::new(NSPoint::new(0.0, 0.0), o.size));
+        }
+        (NSCompositingOperation::Difference, 1.0)
+    } else {
+        (NSCompositingOperation::SourceOver, st.overlay_opacity.clamp(0.05, 1.0))
+    };
+    // SAFETY: plain drawing; `respectFlipped` keeps the image upright.
+    unsafe {
+        image.drawInRect_fromRect_operation_fraction_respectFlipped_hints(
+            dest,
+            NSRect::ZERO,
+            operation,
+            fraction,
+            true,
+            None,
+        )
+    };
+}
+
+/// Grab handles on kept item `n`, to show it can be edited.
+fn draw_handles(s: &Session, o: &Overlay, n: usize, rgb: [f64; 3]) {
+    let Some((_, item)) = s.items.get(n) else { return };
+    let points: Vec<(f64, f64)> = match *item {
+        Item::Area(r) => crate::geometry::rect_handles(r).to_vec(),
+        Item::Line { x0, y0, x1, y1 } => vec![(x0, y0), (x1, y1)],
+        Item::Circle { cx, cy, r } => vec![(cx, cy), (cx + r, cy)],
+        Item::Cross { x, y, .. } => vec![(x as f64 + 0.5, y as f64 + 0.5)],
+        Item::VerticalGuide { .. } | Item::HorizontalGuide { .. } => Vec::new(),
+    };
+    let size = lw(7.0);
+    for (px, py) in points {
+        let r =
+            NSRect::new(NSPoint::new(px / o.scale - size / 2.0, py / o.scale - size / 2.0), NSSize::new(size, size));
+        let path = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(r, 1.5, 1.5);
+        NSColor::whiteColor().setFill();
+        path.fill();
+        path.setLineWidth(lw(1.0));
+        color(rgb, 1.0).setStroke();
+        path.stroke();
+    }
+}
+
+/// ⌥ over a kept box: the box outlined and a dashed line with its length to
+/// the nearest box, guide, or screen edge on every side.
+fn draw_spacing(s: &Session, o: &Overlay, area: PxRect, sp: crate::geometry::Spacing, rgb: [f64; 3]) {
+    let rect = o.rect_pt(area);
+    color(rgb, if high_contrast() { 0.22 } else { 0.12 }).setFill();
+    NSBezierPath::fillRect(rect);
+    let outline = NSBezierPath::bezierPathWithRect(rect);
+    outline.setLineWidth(lw(2.0));
+    color(rgb, 1.0).setStroke();
+    outline.stroke();
+    let (cx, cy) = (rect.origin.x + rect.size.width / 2.0, rect.origin.y + rect.size.height / 2.0);
+    let gaps = [(sp.left, true, cy), (sp.right, true, cy), (sp.top, false, cx), (sp.bottom, false, cx)];
+    let accent = color(rgb, 1.0);
+    for ((from, to), horizontal, across) in gaps {
+        if to <= from {
+            continue;
+        }
+        let (a, b) = (o.pt(from), o.pt(to));
+        let path = NSBezierPath::bezierPath();
+        path.setLineWidth(lw(1.0));
+        let dash = [4.0f64, 3.0];
+        // SAFETY: `dash` holds two values.
+        unsafe { path.setLineDash_count_phase(dash.as_ptr().cast_mut().cast(), 2, 0.0) };
+        let tick = 4.0;
+        if horizontal {
+            line(&path, (a, across), (b, across));
+            line(&path, (a, across - tick), (a, across + tick));
+            line(&path, (b, across - tick), (b, across + tick));
+        } else {
+            line(&path, (across, a), (across, b));
+            line(&path, (across - tick, a), (across + tick, a));
+            line(&path, (across - tick, b), (across + tick, b));
+        }
+        accent.setStroke();
+        path.stroke();
+        let mid = (a + b) / 2.0;
+        let at = if horizontal { NSPoint::new(mid, across - 14.0) } else { NSPoint::new(across + 4.0, mid) };
+        let label = s.len_text(to - from, &o.measure);
+        if horizontal {
+            pill_centered(&label, at, o.size, 11.0, &accent);
+        } else {
+            let w = pill_size(&label, 11.0).width;
+            pill_centered(&label, NSPoint::new(at.x + w / 2.0, at.y), o.size, 11.0, &accent);
+        }
+    }
+}
 
 pub(super) fn draw(index: usize) {
     SESSION.with(|s| {
@@ -377,10 +478,23 @@ pub(super) fn draw(index: usize) {
         if (s.settings.freeze && !s.kept) || s.exporting {
             o.image.drawInRect(NSRect::new(NSPoint::new(0.0, 0.0), o.size));
         }
+        // The design overlay, only while measuring (never in screenshots).
+        if !s.kept && !s.exporting {
+            draw_design_overlay(s, o);
+        }
 
         draw_grid(s, o, index, rgb);
         draw_guides(s, o, index, rgb);
-        for (_, item) in s.items.iter().filter(|(i, _)| *i == index) {
+        // The box whose spacing shows (⌥) gets its outline from the spacing
+        // view instead of its usual labels, which would collide with it.
+        let spacing_box = (index == s.active && s.option && s.drag.is_none() && !s.kept && !s.exporting)
+            .then(|| s.hover_px().and_then(|(x, y)| s.area_under(index, x, y)))
+            .flatten()
+            .map(|(n, _)| n);
+        for (n, (_, item)) in s.items.iter().enumerate().filter(|(_, (i, _))| *i == index) {
+            if Some(n) == spacing_box {
+                continue;
+            }
             match item {
                 Item::Area(r) => draw_area(s, o, *r, rgb),
                 Item::Cross { x, y, cross, axes } => draw_cross(s, o, *x, *y, cross, *axes, rgb),
@@ -395,7 +509,12 @@ pub(super) fn draw(index: usize) {
         }
 
         if index == s.active {
-            if let Some(d) = s.drag {
+            if let Some(d) = s.drag.filter(|d| d.edit.is_some()) {
+                // Editing a kept item: its handles, nothing new.
+                if let Some(target) = d.edit {
+                    draw_handles(s, o, target.item, rgb);
+                }
+            } else if let Some(d) = s.drag {
                 let px = |v: f64| v * o.scale;
                 match d.tool {
                     Tool::Line => draw_line(s, o, (px(d.start.x), px(d.start.y), px(d.end.x), px(d.end.y)), rgb),
@@ -410,8 +529,16 @@ pub(super) fn draw(index: usize) {
                 if s.shift {
                     draw_alignment(o, x, y, rgb);
                 }
-                let c = s.cross_at(index, x, y);
-                draw_cross(s, o, x, y, &c, s.settings.axes, rgb);
+                // ⌥ over a kept box: its spacing to everything around it.
+                if let Some((n, area)) = s.area_under(index, x, y).filter(|_| s.option) {
+                    draw_spacing(s, o, area, s.spacing_of(index, n, area), rgb);
+                } else {
+                    let c = s.cross_at(index, x, y);
+                    draw_cross(s, o, x, y, &c, s.settings.axes, rgb);
+                }
+                if let Some(n) = s.hovered_item() {
+                    draw_handles(s, o, n, rgb);
+                }
                 if s.settings.loupe {
                     draw_loupe(s, o, x, y, p, rgb);
                 }

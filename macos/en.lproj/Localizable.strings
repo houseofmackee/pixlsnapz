@@ -49,14 +49,23 @@
 /* src/settings_window/pickers.rs */
 "Choose" = "Choose";
 
+/* src/app/menu.rs, src/overlay/actions.rs */
+"Choose a design image to lay over the screen" = "Choose a design image to lay over the screen";
+
 /* src/settings_window/pickers.rs */
 "Choose an app in which the measure shortcut is left to the app." = "Choose an app in which the measure shortcut is left to the app.";
+
+/* src/app/menu.rs */
+"Choose Image…" = "Choose Image…";
 
 /* src/settings_window/mod.rs */
 "Choose…" = "Choose…";
 
 /* src/overlay/keys.rs */
 "Circle tool: drag from the center" = "Circle tool: drag from the center";
+
+/* src/overlay/actions.rs */
+"CleanShotZ is not installed" = "CleanShotZ is not installed";
 
 /* src/settings_window/mod.rs */
 "Clear" = "Clear";
@@ -106,6 +115,9 @@
 /* src/settings_window/mod.rs */
 "Copy colors as:" = "Copy colors as:";
 
+/* src/settings_window/mod.rs */
+"Copy sizes as:" = "Copy sizes as:";
+
 /* src/app/mod.rs */
 "Could not capture the screen" = "Could not capture the screen";
 
@@ -122,6 +134,21 @@
 "degrees" = "degrees";
 
 /* src/app/menu.rs */
+"Design Overlay" = "Design Overlay";
+
+/* src/overlay/keys.rs */
+"Design overlay: off" = "Design overlay: off";
+
+/* src/overlay/keys.rs */
+"Design overlay: on" = "Design overlay: on";
+
+/* src/overlay/keys.rs */
+"Design overlay: {look}" = "Design overlay: {look}";
+
+/* src/overlay/actions.rs */
+"Design overlay: ⇧I opacity, ⌘ arrows move, ⌘I to the pointer" = "Design overlay: ⇧I opacity, ⌘ arrows move, ⌘I to the pointer";
+
+/* src/app/menu.rs */
 "Design Zoom" = "Design Zoom";
 
 /* src/settings_window/mod.rs */
@@ -136,11 +163,17 @@
 /* src/units.rs */
 "diameter" = "diameter";
 
+/* src/overlay/keys.rs */
+"difference" = "difference";
+
+/* src/overlay/draw.rs */
+"Drag a handle: edit  ·  ⌥ over a box: spacing  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Drag a handle: edit  ·  ⌥ over a box: spacing  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges";
+
 /* src/overlay/actions.rs */
 "Drag over an area first" = "Drag over an area first";
 
 /* src/overlay/draw.rs */
-"Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge" = "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge";
+"Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep" = "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep";
 
 /* src/settings_window/mod.rs */
 "Draw the measurements into screenshots" = "Draw the measurements into screenshots";
@@ -292,6 +325,9 @@
 /* src/settings_window/pickers.rs */
 "Not an app" = "Not an app";
 
+/* src/overlay/actions.rs */
+"Not an image" = "Not an image";
+
 /* src/overlay/keys.rs */
 "Nothing to restore" = "Nothing to restore";
 
@@ -334,6 +370,9 @@
 /* src/settings_window/mod.rs */
 "PixlSnapz Settings" = "PixlSnapz Settings";
 
+/* src/units.rs */
+"Plain" = "Plain";
+
 /* src/settings.rs */
 "Points" = "Points";
 
@@ -357,6 +396,9 @@
 
 /* src/app/menu.rs */
 "Recent Colors" = "Recent Colors";
+
+/* src/app/menu.rs */
+"Remove Image" = "Remove Image";
 
 /* src/overlay/keys.rs */
 "Restored {n} items" = "Restored {n} items";
@@ -406,6 +448,15 @@
 /* src/settings_window/mod.rs */
 "Show units (pt, px, mm, in)" = "Show units (pt, px, mm, in)";
 
+/* src/app/menu.rs */
+"Show While Measuring" = "Show While Measuring";
+
+/* src/app/menu.rs */
+"Size Format" = "Size Format";
+
+/* src/overlay/keys.rs */
+"Size format: {name}" = "Size format: {name}";
+
 /* src/overlay/keys.rs */
 "Smooth edges (photos and gradients)" = "Smooth edges (photos and gradients)";
 
@@ -445,6 +496,9 @@
 /* src/settings_window/recorder.rs */
 "Type a shortcut (Esc cancels)" = "Type a shortcut (Esc cancels)";
 
+/* src/overlay/draw.rs */
+"U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast" = "U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast";
+
 /* src/app/menu.rs */
 "Units" = "Units";
 
@@ -462,9 +516,6 @@
 
 /* src/settings.rs */
 "Very High" = "Very High";
-
-/* src/overlay/draw.rs */
-"X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  N smooth edges  ·  D ⇧D design zoom  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast" = "X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  N smooth edges  ·  D ⇧D design zoom  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast";
 
 /* src/settings.rs */
 "Yellow" = "Yellow";
@@ -485,4 +536,4 @@
 "{shortcut} is used by another app. Choose another one in PixlSnapz Settings (menu bar icon > Settings…); you can still start measuring from the menu bar." = "{shortcut} is used by another app. Choose another one in PixlSnapz Settings (menu bar icon > Settings…); you can still start measuring from the menu bar.";
 
 /* src/overlay/draw.rs */
-"⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done";
+"⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done";

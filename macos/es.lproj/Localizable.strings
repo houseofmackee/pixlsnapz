@@ -49,14 +49,23 @@
 /* src/settings_window/pickers.rs */
 "Choose" = "Elegir";
 
+/* src/app/menu.rs, src/overlay/actions.rs */
+"Choose a design image to lay over the screen" = "Elige una imagen de diseño para superponer a la pantalla";
+
 /* src/settings_window/pickers.rs */
 "Choose an app in which the measure shortcut is left to the app." = "Elige una app a la que se deja el atajo de medir.";
+
+/* src/app/menu.rs */
+"Choose Image…" = "Elegir imagen…";
 
 /* src/settings_window/mod.rs */
 "Choose…" = "Elegir…";
 
 /* src/overlay/keys.rs */
 "Circle tool: drag from the center" = "Herramienta de círculo: arrastra desde el centro";
+
+/* src/overlay/actions.rs */
+"CleanShotZ is not installed" = "CleanShotZ no está instalado";
 
 /* src/settings_window/mod.rs */
 "Clear" = "Borrar";
@@ -106,6 +115,9 @@
 /* src/settings_window/mod.rs */
 "Copy colors as:" = "Copiar colores como:";
 
+/* src/settings_window/mod.rs */
+"Copy sizes as:" = "Copiar tamaños como:";
+
 /* src/app/mod.rs */
 "Could not capture the screen" = "No se pudo capturar la pantalla";
 
@@ -122,6 +134,21 @@
 "degrees" = "grados";
 
 /* src/app/menu.rs */
+"Design Overlay" = "Superposición de diseño";
+
+/* src/overlay/keys.rs */
+"Design overlay: off" = "Superposición: desactivada";
+
+/* src/overlay/keys.rs */
+"Design overlay: on" = "Superposición: activada";
+
+/* src/overlay/keys.rs */
+"Design overlay: {look}" = "Superposición: {look}";
+
+/* src/overlay/actions.rs */
+"Design overlay: ⇧I opacity, ⌘ arrows move, ⌘I to the pointer" = "Superposición: ⇧I opacidad, ⌘ flechas para mover, ⌘I al puntero";
+
+/* src/app/menu.rs */
 "Design Zoom" = "Zoom del diseño";
 
 /* src/settings_window/mod.rs */
@@ -136,11 +163,17 @@
 /* src/units.rs */
 "diameter" = "diámetro";
 
+/* src/overlay/keys.rs */
+"difference" = "diferencia";
+
+/* src/overlay/draw.rs */
+"Drag a handle: edit  ·  ⌥ over a box: spacing  ·  V H: guides  ·  ⌥ arrows: next edge  ·  X: directions  ·  Scroll or [ ]: tolerance  ·  N smooth edges" = "Arrastrar un tirador: editar  ·  ⌥ sobre un área: espacios  ·  V H: guías  ·  ⌥ flechas: siguiente borde  ·  X: direcciones  ·  Desplazar o [ ]: tolerancia  ·  N bordes suaves";
+
 /* src/overlay/actions.rs */
 "Drag over an area first" = "Primero arrastra sobre un área";
 
 /* src/overlay/draw.rs */
-"Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge" = "Arrastrar: área  ·  ⌘/arrastrar con clic derecho: sin ajuste  ·  ⌥-arrastrar o L: línea  ·  E: círculo  ·  ⇧: retícula, cuadrado, 45°  ·  Clic: conservar  ·  V H: guías  ·  ⌥ flechas: siguiente borde";
+"Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep" = "Arrastrar: área  ·  ⌘/arrastrar con clic derecho: sin ajuste  ·  ⌥-arrastrar o L: línea  ·  E: círculo  ·  ⇧: retícula, cuadrado, 45°  ·  Clic: conservar";
 
 /* src/settings_window/mod.rs */
 "Draw the measurements into screenshots" = "Dibujar las medidas en las capturas";
@@ -292,6 +325,9 @@
 /* src/settings_window/pickers.rs */
 "Not an app" = "No es una app";
 
+/* src/overlay/actions.rs */
+"Not an image" = "No es una imagen";
+
 /* src/overlay/keys.rs */
 "Nothing to restore" = "Nada que restaurar";
 
@@ -334,6 +370,9 @@
 /* src/settings_window/mod.rs */
 "PixlSnapz Settings" = "Ajustes de PixlSnapz";
 
+/* src/units.rs */
+"Plain" = "Simple";
+
 /* src/settings.rs */
 "Points" = "Puntos";
 
@@ -357,6 +396,9 @@
 
 /* src/app/menu.rs */
 "Recent Colors" = "Colores recientes";
+
+/* src/app/menu.rs */
+"Remove Image" = "Quitar imagen";
 
 /* src/overlay/keys.rs */
 "Restored {n} items" = "{n} elementos restaurados";
@@ -406,6 +448,15 @@
 /* src/settings_window/mod.rs */
 "Show units (pt, px, mm, in)" = "Mostrar unidades (pt, px, mm, in)";
 
+/* src/app/menu.rs */
+"Show While Measuring" = "Mostrar al medir";
+
+/* src/app/menu.rs */
+"Size Format" = "Formato de tamaño";
+
+/* src/overlay/keys.rs */
+"Size format: {name}" = "Formato de tamaño: {name}";
+
 /* src/overlay/keys.rs */
 "Smooth edges (photos and gradients)" = "Bordes suavizados (fotos y degradados)";
 
@@ -445,6 +496,9 @@
 /* src/settings_window/recorder.rs */
 "Type a shortcut (Esc cancels)" = "Pulsa un atajo (Esc cancela)";
 
+/* src/overlay/draw.rs */
+"U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  D ⇧D design zoom  ·  I design overlay  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast" = "U unidades  ·  O cuadrícula  ·  F congelar  ·  Z lupa  ·  - + zoom  ·  ⇧Z visión  ·  D ⇧D zoom del diseño  ·  I superposición  ·  P color  ·  ⇧P formato  ·  ⌥P promedio  ·  K contraste";
+
 /* src/app/menu.rs */
 "Units" = "Unidades";
 
@@ -462,9 +516,6 @@
 
 /* src/settings.rs */
 "Very High" = "Muy alta";
-
-/* src/overlay/draw.rs */
-"X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  N smooth edges  ·  D ⇧D design zoom  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast" = "X: direcciones  ·  Desplazar o [ ]: tolerancia  ·  U unidades  ·  O cuadrícula  ·  F congelar  ·  Z lupa  ·  - + zoom  ·  ⇧Z visión  ·  N bordes suaves  ·  D ⇧D zoom del diseño  ·  P color  ·  ⇧P formato  ·  ⌥P promedio  ·  K contraste";
 
 /* src/settings.rs */
 "Yellow" = "Amarillo";
@@ -485,4 +536,4 @@
 "{shortcut} is used by another app. Choose another one in PixlSnapz Settings (menu bar icon > Settings…); you can still start measuring from the menu bar." = "{shortcut} lo usa otra app. Elige otro en Ajustes de PixlSnapz (icono de la barra de menús > Ajustes…); aún puedes empezar a medir desde la barra de menús.";
 
 /* src/overlay/draw.rs */
-"⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copiar  ·  ⌘S ⇧⌘C captura  ·  M medidas en capturas  ·  B mantener en pantalla  ·  ⌫ deshacer  ·  C borrar  ·  R restaurar  ·  ? indicaciones  ·  Esc terminar";
+"⌘C copy  ·  T size format  ·  ⌘S ⇧⌘C screenshot  ·  ⌘E CleanShotZ  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ remove  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copiar  ·  T formato de tamaño  ·  ⌘S ⇧⌘C captura  ·  ⌘E CleanShotZ  ·  M medidas en capturas  ·  B mantener en pantalla  ·  ⌫ quitar  ·  C borrar  ·  R restaurar  ·  ? indicaciones  ·  Esc terminar";

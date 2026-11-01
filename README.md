@@ -24,6 +24,8 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Distances**: lines run from the pointer to the nearest edge left, right, up, and down, with the size as `W × H`; the pointer itself is hidden while measuring, so nothing covers the spot the lines cross
 - **Area snapping**: drag over something and the box shrinks to its exact bounds; several objects in one drag snap to all of them. Hold ⌘ (or drag with the right mouse button) to measure exactly what you drag
 - **Keep measurements**: click to keep a distance on screen, and drag as many areas as you like. New distances stop at kept areas and guides, so you can read the gap between two objects
+- **Spacing**: hold ⌥ over a kept box to see its distance to the nearest box, guide, or screen edge on every side
+- **Edit what you kept**: hover a kept box, line, circle, guide, or point to see its handles; drag a handle to resize, or the outline or line to move it. ⌫ removes the item under the pointer
 - **Guides**: press V or H for a vertical or horizontal guide at the pointer; guides snap to nearby edges, show the distances between each other and to the screen edges, and move with the arrow keys
 - **Line ruler**: ⌥-drag (or press L for the line tool) to measure the length and angle of any line, with a protractor arc; hold ⇧ to snap to 45°
 - **Circle tool**: press E and drag from the center to measure radius and diameter
@@ -33,7 +35,9 @@ Apple silicon, macOS 14 Sonoma or later.
 - **Loupe**: a pixel grid magnifier next to the pointer, with the color and coordinates of the pixel under it; zoom from 4× to 32× with - and +
 - **Colors**: P copies the color under the pointer and ⌥P the average color of the last area, as hex, `rgb()`, `hsl()`, SwiftUI, or AppKit code (⇧P switches); the last 20 are under Recent Colors in the menu bar icon's menu
 - **Color vision**: ⇧Z shows the loupe as people with protanopia, deuteranopia, tritanopia, or achromatopsia see it
-- **Screenshots**: ⌘S saves the last area as a PNG on the Desktop (⇧⌘C copies it), with the measurements drawn in (M turns that off); hold ⌥ for padding around it
+- **Screenshots**: ⌘S saves the last area as a PNG on the Desktop (⇧⌘C copies it), with the measurements drawn in (M turns that off); hold ⌥ for padding around it. ⌘E opens it in [CleanShotZ](https://github.com/houseofmackee/cleanshotz) to annotate
+- **Copy sizes as code**: T switches what ⌘C copies: `120 × 48`, CSS (`width: 120px; height: 48px;`), Tailwind (`w-[120px] h-[48px]`), SwiftUI (`.frame(width: 120, height: 48)`), or `CGSize(width: 120, height: 48)`
+- **Design overlay**: lay a design image (such as a mockup exported at @2x) over the real app at 25% to 100% opacity, or as a difference that turns everything matching black; one image pixel is one screen pixel
 - **Freeze screen**: measure a still copy of the screen, so menus and animations stay put
 - **Contrast checker**: press K on one color and K again on another to copy the WCAG contrast ratio and grade, such as `4.54:1  AA`; a live readout with both swatches follows the pointer in between
 - **Units**: points, pixels, millimeters, or inches (real sizes from what each display reports, or a PPI you set), optional unit labels, and the aspect ratio of areas (`16:9`)
@@ -96,12 +100,21 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | Arrow keys | Move the pointer by one pixel (⇧: ten points) |
 | ⌥ arrow keys | Jump to the next edge |
 | X | Measure both directions, horizontal only, or vertical only |
-| ⌘C | Copy the last size, such as `120 × 48` |
+| ⌘C | Copy the last size, such as `120 × 48` (or as code, see T) |
+| T | Size format for ⌘C: plain, CSS, Tailwind, SwiftUI, CGSize |
+| ⌥ (hold) over a kept box | Its spacing to the nearest box, guide, or screen edge on every side |
+| Drag a handle | Resize a kept box, line, or circle; drag its outline (or a guide) to move it |
 | Return | Copy the last size and finish |
 | P | Copy the color under the pointer |
 | ⌥P | Copy the average color of the last area |
 | ⇧P | Switch the color format: hex, RGB, HSL, SwiftUI, AppKit |
 | ⌘S / ⇧⌘C | Save / copy a screenshot of the last area (⌥: with padding) |
+| ⌘E | Open the last area, with its measurements, in CleanShotZ |
+| I | Design overlay on or off (asks for an image the first time) |
+| ⌥I | Choose another design image |
+| ⇧I | Design overlay: 25, 50, 75, 100% opacity, then difference |
+| ⌘ arrow keys | Move the design overlay by a pixel (⇧: ten) |
+| ⌘I | Put the design overlay's top-left corner at the pointer |
 | M | Measurements in screenshots on or off |
 | Z | Loupe on or off |
 | - and + | Loupe zoom out and in |
@@ -116,7 +129,8 @@ Press **⇧⌘1** (or choose Measure from the menu bar icon), measure, and press
 | Scroll, [ and ] | Lower or raise the edge tolerance |
 | N | Smooth edges on or off (photos and gradients) |
 | D and ⇧D | Design zoom up and down |
-| ⌫, ⌘Z | Remove the last measurement or guide |
+| ⌫ | Remove the item under the pointer, or else the last one |
+| ⌘Z | Remove the last measurement or guide |
 | C | Clear everything |
 | R | Restore the previous session, also after a restart |
 | ? | Show or hide the shortcut hints |
@@ -156,6 +170,13 @@ stamp_screenshots = true     # draw the measurements into screenshots
 smooth_edges = false         # find edges on a smoothed screen (photos, gradients)
 vision = "normal"            # or "protanopia", "deuteranopia", "tritanopia", "achromatopsia"
 disabled_apps = []           # bundle identifiers, such as ["com.figma.Desktop"]
+size_format = "plain"        # or "css", "tailwind", "swiftui", "cgsize"
+overlay_image = ""           # the design overlay's image file
+overlay_visible = false
+overlay_opacity = 0.5        # 0 to 1
+overlay_difference = false   # show the difference with the screen instead
+overlay_x = 0.0              # the image's top-left corner, in screen pixels
+overlay_y = 0.0
 ```
 
 The last session's measurements and guides are kept in `last-session.toml` next to the settings, for R, and recent colors in `colors.toml`.

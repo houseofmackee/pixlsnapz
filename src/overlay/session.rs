@@ -11,6 +11,7 @@ use objc2_app_kit::NSImage;
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSTimer};
 
 use crate::capture::Shot;
+use crate::geometry::{Spacing, distance_to_segment, move_rect, rect_handles, resize_rect, spacing};
 use crate::items::{Display, Item, SavedItem, SavedSession};
 use crate::measure::{
     Cross, Direction, Frame, PxRect, Scale, clip_cross, columns, format_angle, line_angle, line_length, next_edge,
@@ -38,7 +39,36 @@ pub(super) struct Drag {
     pub(super) start: NSPoint,
     pub(super) end: NSPoint,
     pub(super) tool: Tool,
+    /// Editing a kept item instead of measuring something new.
+    pub(super) edit: Option<Target>,
 }
+
+/// The part of a kept item a drag takes hold of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Grip {
+    /// One of a box's eight handles (see `geometry::rect_handles`).
+    AreaHandle(usize),
+    /// A box's outline: moves the box.
+    AreaMove,
+    /// A line's start (false) or end (true).
+    LineEnd(bool),
+    LineMove,
+    CircleCenter,
+    CircleRim,
+    Guide,
+    /// A kept distance's point.
+    CrossMove,
+}
+
+/// A kept item (its index in `Session::items`) and the grip on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Target {
+    pub(super) item: usize,
+    pub(super) grip: Grip,
+}
+
+/// How near (in points) the pointer must be to take hold of a kept item.
+const GRIP_TOLERANCE: f64 = 6.0;
 
 pub(super) struct Overlay {
     pub(super) window: Retained<OverlayWindow>,
@@ -119,6 +149,10 @@ pub(super) struct Session {
     /// Measuring ended but the measurements stay on screen (B); the
     /// overlay lets clicks through.
     pub(super) kept: bool,
+    /// Option is held: spacing around the box under the pointer.
+    pub(super) option: bool,
+    /// The design overlay's image and its size in pixels.
+    pub(super) overlay_image: Option<(Retained<NSImage>, f64, f64)>,
 }
 
 impl Session {
@@ -145,6 +179,180 @@ impl Session {
             settings_dirty: false,
             contrast: None,
             kept: false,
+            option: false,
+            overlay_image: None,
+        }
+    }
+
+    /// The kept item under `p` (points) on overlay `index`, and the grip a
+    /// drag there would take: the topmost (latest) item first.
+    pub(super) fn hit_test(&self, index: usize, p: NSPoint) -> Option<Target> {
+        let o = self.overlays.get(index)?;
+        let at = (p.x * o.scale, p.y * o.scale);
+        let tol = GRIP_TOLERANCE * o.scale;
+        let near = |q: (f64, f64)| line_length(q.0 - at.0, q.1 - at.1) <= tol;
+        for (n, (i, item)) in self.items.iter().enumerate().rev() {
+            if *i != index {
+                continue;
+            }
+            let grip = match *item {
+                Item::Area(r) => {
+                    if let Some(h) = rect_handles(r).iter().position(|h| near(*h)) {
+                        Some(Grip::AreaHandle(h))
+                    } else {
+                        let c = rect_handles(r);
+                        let corners = [c[0], c[2], c[4], c[6], c[0]];
+                        corners.windows(2).any(|e| distance_to_segment(at, e[0], e[1]) <= tol).then_some(Grip::AreaMove)
+                    }
+                }
+                Item::Line { x0, y0, x1, y1 } => {
+                    if near((x1, y1)) {
+                        Some(Grip::LineEnd(true))
+                    } else if near((x0, y0)) {
+                        Some(Grip::LineEnd(false))
+                    } else {
+                        (distance_to_segment(at, (x0, y0), (x1, y1)) <= tol).then_some(Grip::LineMove)
+                    }
+                }
+                Item::Circle { cx, cy, r } => {
+                    let d = line_length(at.0 - cx, at.1 - cy);
+                    if d <= tol { Some(Grip::CircleCenter) } else { ((d - r).abs() <= tol).then_some(Grip::CircleRim) }
+                }
+                Item::VerticalGuide { x } => ((x as f64 - at.0).abs() <= tol).then_some(Grip::Guide),
+                Item::HorizontalGuide { y } => ((y as f64 - at.1).abs() <= tol).then_some(Grip::Guide),
+                Item::Cross { x, y, .. } => near((x as f64 + 0.5, y as f64 + 0.5)).then_some(Grip::CrossMove),
+            };
+            if let Some(grip) = grip {
+                return Some(Target { item: n, grip });
+            }
+        }
+        None
+    }
+
+    /// The kept item whose handles to show: the one under the pointer, or
+    /// the box the pointer is inside.
+    pub(super) fn hovered_item(&self) -> Option<usize> {
+        let p = self.hover?;
+        if let Some(t) = self.hit_test(self.active, p) {
+            return Some(t.item);
+        }
+        let (x, y) = self.hover_px()?;
+        self.area_under(self.active, x, y).map(|(n, _)| n)
+    }
+
+    /// The latest kept box on overlay `index` that contains pixel (x, y).
+    pub(super) fn area_under(&self, index: usize, x: usize, y: usize) -> Option<(usize, PxRect)> {
+        self.items.iter().enumerate().rev().find_map(|(n, (i, item))| match item {
+            Item::Area(r) if *i == index && (r.x0..r.x1).contains(&x) && (r.y0..r.y1).contains(&y) => Some((n, *r)),
+            _ => None,
+        })
+    }
+
+    /// The spacing around kept box `n` to its neighbors, guides, and the
+    /// screen edges.
+    pub(super) fn spacing_of(&self, index: usize, n: usize, area: PxRect) -> Spacing {
+        let o = &self.overlays[index];
+        let others: Vec<PxRect> = self
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(m, (i, item))| match item {
+                Item::Area(r) if *i == index && m != n => Some(*r),
+                _ => None,
+            })
+            .collect();
+        let (v, h) = self.guides(index);
+        spacing(area, &others, &v, &h, o.shot.frame.width, o.shot.frame.height)
+    }
+
+    /// Applies a drag on a kept item from `from` to `to` (points).
+    pub(super) fn apply_edit(&mut self, target: Target, from: NSPoint, to: NSPoint) {
+        let Some(&(index, item)) = self.items.get(target.item) else { return };
+        let o = &self.overlays[index];
+        let (w, h) = (o.shot.frame.width, o.shot.frame.height);
+        let s = o.scale;
+        let (tx, ty) = ((to.x * s).clamp(0.0, w as f64), (to.y * s).clamp(0.0, h as f64));
+        let (dx, dy) = ((to.x - from.x) * s, (to.y - from.y) * s);
+        let edited = match (item, target.grip) {
+            (Item::Area(r), Grip::AreaHandle(k)) => Item::Area(resize_rect(r, k, tx, ty, w, h)),
+            (Item::Area(r), Grip::AreaMove) => Item::Area(move_rect(r, dx, dy, w, h)),
+            (Item::Line { x0, y0, .. }, Grip::LineEnd(true)) => Item::Line { x0, y0, x1: tx, y1: ty },
+            (Item::Line { x1, y1, .. }, Grip::LineEnd(false)) => Item::Line { x0: tx, y0: ty, x1, y1 },
+            (Item::Line { x0, y0, x1, y1 }, Grip::LineMove) => {
+                Item::Line { x0: x0 + dx, y0: y0 + dy, x1: x1 + dx, y1: y1 + dy }
+            }
+            (Item::Circle { cx, cy, r }, Grip::CircleCenter) => Item::Circle { cx: cx + dx, cy: cy + dy, r },
+            (Item::Circle { cx, cy, .. }, Grip::CircleRim) => Item::Circle { cx, cy, r: line_length(tx - cx, ty - cy) },
+            (Item::VerticalGuide { .. }, Grip::Guide) => Item::VerticalGuide { x: tx.round() as usize },
+            (Item::HorizontalGuide { .. }, Grip::Guide) => Item::HorizontalGuide { y: ty.round() as usize },
+            (Item::Cross { axes, .. }, Grip::CrossMove) => {
+                let (x, y) = (tx.min(w as f64 - 1.0) as usize, ty.min(h as f64 - 1.0) as usize);
+                // Measured without the item itself, which may stop it.
+                let kept = self.items.remove(target.item);
+                let cross = self.cross_at(index, x, y);
+                self.items.insert(target.item, kept);
+                Item::Cross { x, y, cross, axes }
+            }
+            (other, _) => other,
+        };
+        self.items[target.item].1 = edited;
+    }
+
+    /// Removes the kept item under the pointer, or else the latest one.
+    pub(super) fn remove_item(&mut self) {
+        match self.hovered_item() {
+            Some(n) => {
+                self.items.remove(n);
+            }
+            None => {
+                self.items.pop();
+            }
+        }
+    }
+
+    /// What ⌘C copies: like `copy_text`, with sizes in the chosen size
+    /// format.
+    pub(super) fn clipboard_text(&self) -> Option<String> {
+        let format = self.settings.size_format;
+        let units = self.settings.units;
+        let size = |w: f64, h: f64, scale: &Scale| {
+            format.format(&scale.format(w, units, false), &scale.format(h, units, false), units)
+        };
+        let last = self.items.iter().rev().find_map(|(i, item)| {
+            let scale = &self.overlays[*i].measure;
+            match item {
+                Item::Area(r) => Some(size(r.width() as f64, r.height() as f64, scale)),
+                Item::Cross { cross, axes: Axes::Both, .. } => {
+                    Some(size(cross.width() as f64, cross.height() as f64, scale))
+                }
+                Item::Circle { r, .. } => Some(size(2.0 * r, 2.0 * r, scale)),
+                Item::Cross { .. } | Item::Line { .. } => self.text_of(item, scale),
+                _ => None,
+            }
+        });
+        if last.is_some() {
+            return last;
+        }
+        let (x, y) = self.hover_px()?;
+        let c = self.cross_at(self.active, x, y);
+        let scale = &self.overlays[self.active].measure;
+        Some(match self.settings.axes {
+            Axes::Both => size(c.width() as f64, c.height() as f64, scale),
+            axes => self.cross_text(&c, axes, scale),
+        })
+    }
+
+    /// An item's measurement in plain text, as shown on screen.
+    pub(super) fn text_of(&self, item: &Item, scale: &Scale) -> Option<String> {
+        match item {
+            Item::Area(r) => Some(self.size_text(r.width(), r.height(), scale)),
+            Item::Cross { cross, axes, .. } => Some(self.cross_text(cross, *axes, scale)),
+            Item::Line { x0, y0, x1, y1 } => {
+                let (len, angle) = self.line_texts((*x0, *y0, *x1, *y1), scale);
+                Some(format!("{len}, {angle}"))
+            }
+            Item::Circle { r, .. } => Some(self.circle_text(*r, scale)),
+            _ => None,
         }
     }
 
@@ -292,19 +500,7 @@ impl Session {
 
     /// The text to copy: the last kept measurement, or the one under the cursor.
     pub(super) fn copy_text(&self) -> Option<String> {
-        let last = self.items.iter().rev().find_map(|(i, item)| {
-            let scale = &self.overlays[*i].measure;
-            match item {
-                Item::Area(r) => Some(self.size_text(r.width(), r.height(), scale)),
-                Item::Cross { cross, axes, .. } => Some(self.cross_text(cross, *axes, scale)),
-                Item::Line { x0, y0, x1, y1 } => {
-                    let (len, angle) = self.line_texts((*x0, *y0, *x1, *y1), scale);
-                    Some(format!("{len}, {angle}"))
-                }
-                Item::Circle { r, .. } => Some(self.circle_text(*r, scale)),
-                _ => None,
-            }
-        });
+        let last = self.items.iter().rev().find_map(|(i, item)| self.text_of(item, &self.overlays[*i].measure));
         if last.is_some() {
             return last;
         }

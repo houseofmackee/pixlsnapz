@@ -82,6 +82,61 @@ pub fn aspect_ratio(w: usize, h: usize) -> String {
     if a <= 32 && b <= 32 { format!("{a}:{b}") } else { format!("{:.2}:1", w as f64 / h as f64) }
 }
 
+/// How ⌘C copies a size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SizeFormat {
+    /// `120 × 48`
+    #[default]
+    Plain,
+    /// `width: 120px; height: 48px;`
+    Css,
+    /// `w-[120px] h-[48px]`
+    Tailwind,
+    /// `.frame(width: 120, height: 48)`
+    SwiftUI,
+    /// `CGSize(width: 120, height: 48)`
+    CGSize,
+}
+
+impl SizeFormat {
+    pub const ALL: [SizeFormat; 5] =
+        [SizeFormat::Plain, SizeFormat::Css, SizeFormat::Tailwind, SizeFormat::SwiftUI, SizeFormat::CGSize];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            SizeFormat::Plain => n!("Plain"),
+            SizeFormat::Css => "CSS",
+            SizeFormat::Tailwind => "Tailwind",
+            SizeFormat::SwiftUI => "SwiftUI",
+            SizeFormat::CGSize => "CGSize",
+        }
+    }
+
+    pub fn next(self) -> SizeFormat {
+        let i = SizeFormat::ALL.iter().position(|f| *f == self).unwrap_or(0);
+        SizeFormat::ALL[(i + 1) % SizeFormat::ALL.len()]
+    }
+
+    /// A width and height (already formatted numbers, such as "120" or
+    /// "15.5") in this format. CSS and Tailwind get the unit: points are
+    /// CSS pixels; millimeters and inches are CSS units too.
+    pub fn format(self, w: &str, h: &str, units: Units) -> String {
+        let css_unit = match units {
+            Units::Points | Units::Pixels => "px",
+            Units::Millimeters => "mm",
+            Units::Inches => "in",
+        };
+        match self {
+            SizeFormat::Plain => format!("{w} × {h}"),
+            SizeFormat::Css => format!("width: {w}{css_unit}; height: {h}{css_unit};"),
+            SizeFormat::Tailwind => format!("w-[{w}{css_unit}] h-[{h}{css_unit}]"),
+            SizeFormat::SwiftUI => format!(".frame(width: {w}, height: {h})"),
+            SizeFormat::CGSize => format!("CGSize(width: {w}, height: {h})"),
+        }
+    }
+}
+
 /// A measurement label as VoiceOver should read it: "140 by 38" for
 /// "140 × 38", "radius 28, diameter 56" for "r 28  ·  ⌀ 56", and "12.5
 /// degrees" for "12.5°".
@@ -131,6 +186,17 @@ mod tests {
         // A manual PPI wins over the reported size; unknown sizes use 96 PPI.
         assert!((Scale::new(1.0, 1000, 500.0, 254.0, 100).mm_per_px - 0.1).abs() < 1e-12);
         assert_eq!(Scale::new(1.0, 1000, 0.0, 0.0, 100).format(96.0, Units::Inches, false), "1");
+    }
+
+    #[test]
+    fn size_formats() {
+        assert_eq!(SizeFormat::Plain.format("120", "48", Units::Points), "120 × 48");
+        assert_eq!(SizeFormat::Css.format("120", "48.5", Units::Points), "width: 120px; height: 48.5px;");
+        assert_eq!(SizeFormat::Css.format("31.9", "12.8", Units::Millimeters), "width: 31.9mm; height: 12.8mm;");
+        assert_eq!(SizeFormat::Tailwind.format("120", "48", Units::Pixels), "w-[120px] h-[48px]");
+        assert_eq!(SizeFormat::SwiftUI.format("120", "48", Units::Points), ".frame(width: 120, height: 48)");
+        assert_eq!(SizeFormat::CGSize.format("120", "48", Units::Points), "CGSize(width: 120, height: 48)");
+        assert_eq!(SizeFormat::CGSize.next(), SizeFormat::Plain);
     }
 
     #[test]

@@ -14,6 +14,7 @@ pub mod i18n;
 
 pub mod color;
 pub mod geometry;
+pub mod integrations;
 pub mod items;
 pub mod measure;
 pub mod settings;

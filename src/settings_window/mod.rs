@@ -17,6 +17,7 @@ use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSS
 use crate::color::{ColorFormat, Vision};
 use crate::i18n::tr;
 use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, LOUPE_ZOOMS, Settings, Units};
+use crate::units::SizeFormat;
 
 mod pickers;
 mod recorder;
@@ -92,6 +93,7 @@ struct Controls {
     freeze: Retained<NSButton>,
     color: Retained<NSPopUpButton>,
     color_format: Retained<NSPopUpButton>,
+    size_format: Retained<NSPopUpButton>,
     loupe: Retained<NSButton>,
     loupe_zoom: Retained<NSPopUpButton>,
     grid: Retained<NSPopUpButton>,
@@ -315,6 +317,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
         freeze: checkbox("Freeze the screen while measuring", t, mtm),
         color: popup(&colors, t, mtm),
         color_format: popup(&formats, t, mtm),
+        size_format: popup(&SizeFormat::ALL.iter().map(|f| f.name()).collect::<Vec<_>>(), t, mtm),
         loupe: checkbox("Show the loupe", t, mtm),
         loupe_zoom: popup(&loupe_zooms, t, mtm),
         grid: popup(&grids, t, mtm),
@@ -366,6 +369,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     let mut l = page(TAB_TITLES[2]);
     l.row("Guide color:", &c.color, 160.0);
     l.row("Copy colors as:", &c.color_format, 160.0);
+    l.row("Copy sizes as:", &c.size_format, 160.0);
     l.plain(&c.loupe, 280.0);
     l.row("Loupe zoom:", &c.loupe_zoom, 100.0);
     l.row("Loupe vision:", &c.vision, 230.0);
@@ -435,6 +439,8 @@ pub fn refresh() {
         set_check(&c.freeze, s.freeze);
         let color = COLORS.iter().position(|(_, hex)| hex.eq_ignore_ascii_case(&s.color));
         c.color.selectItemAtIndex(color.map_or(-1, |i| i as isize));
+        let size_format = SizeFormat::ALL.iter().position(|f| *f == s.size_format).unwrap_or(0);
+        c.size_format.selectItemAtIndex(size_format as isize);
         let format = ColorFormat::ALL.iter().position(|f| *f == s.color_format).unwrap_or(0);
         c.color_format.selectItemAtIndex(format as isize);
         set_check(&c.loupe, s.loupe);
@@ -490,6 +496,7 @@ fn controls_changed() {
             s.color = hex.to_string();
         }
         s.color_format = selected(&c.color_format, &ColorFormat::ALL, s.color_format);
+        s.size_format = selected(&c.size_format, &SizeFormat::ALL, s.size_format);
         s.loupe = is_on(&c.loupe);
         s.loupe_zoom = selected(&c.loupe_zoom, LOUPE_ZOOMS, s.loupe_zoom);
         s.grid = selected(&c.grid, &Grid::ALL, s.grid);

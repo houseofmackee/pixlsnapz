@@ -50,8 +50,24 @@ pub(super) fn key_down(event: &NSEvent) {
             return;
         }
         KEY_DELETE | KEY_FORWARD_DELETE => {
+            update(Session::remove_item);
+            return;
+        }
+        // ⌘ arrows move the design overlay.
+        KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN if command => {
+            let step = if shift { 10.0 } else { 1.0 };
+            let (dx, dy) = match code {
+                KEY_LEFT => (-step, 0.0),
+                KEY_RIGHT => (step, 0.0),
+                KEY_UP => (0.0, -step),
+                _ => (0.0, step),
+            };
             update(|s| {
-                s.items.pop();
+                if s.settings.overlay_visible && s.overlay_image.is_some() {
+                    s.settings.overlay_x += dx;
+                    s.settings.overlay_y += dy;
+                    s.settings_dirty = true;
+                }
             });
             return;
         }
@@ -82,6 +98,46 @@ pub(super) fn key_down(event: &NSEvent) {
             s.items.pop();
         }),
         (true, "w") | (true, "q") | (true, ".") => end(),
+        (true, "e") => send_to_cleanshotz(),
+        (true, "i") => update(|s| {
+            if let Some((x, y)) = s.hover_px() {
+                (s.settings.overlay_x, s.settings.overlay_y) = (x as f64, y as f64);
+                s.save_settings();
+            }
+        }),
+        (false, "i") if option => choose_overlay_image(),
+        (false, "i") if shift => update(|s| {
+            s.settings.step_overlay_look();
+            let look = if s.settings.overlay_difference {
+                t!("difference")
+            } else {
+                format!("{}%", (s.settings.overlay_opacity * 100.0).round())
+            };
+            s.toast(t!("Design overlay: {look}", look));
+            s.save_settings();
+        }),
+        (false, "i") => {
+            let has_image = SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| !s.settings.overlay_image.is_empty()));
+            if has_image {
+                update(|s| {
+                    if s.overlay_image.is_none() {
+                        s.overlay_image = load_overlay_image(&s.settings.overlay_image);
+                    }
+                    s.settings.overlay_visible = !s.settings.overlay_visible;
+                    let on = s.settings.overlay_visible;
+                    s.toast(if on { t!("Design overlay: on") } else { t!("Design overlay: off") });
+                    s.save_settings();
+                });
+            } else {
+                choose_overlay_image();
+            }
+        }
+        (false, "t") => update(|s| {
+            s.settings.size_format = s.settings.size_format.next();
+            let name = tr(s.settings.size_format.name());
+            s.toast(t!("Size format: {name}", name));
+            s.save_settings();
+        }),
         (false, "v") => update(|s| s.add_guide(true)),
         (false, "h") => update(|s| s.add_guide(false)),
         (false, "g") => update(|s| {

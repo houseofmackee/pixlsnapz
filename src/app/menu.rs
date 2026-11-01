@@ -15,6 +15,7 @@ use crate::color::{ColorFormat, ColorHistory};
 use crate::overlay::{self};
 use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, TOLERANCE_STEPS, Units};
 use crate::shortcut::{CMD, CONTROL, OPTION, SHIFT};
+use crate::units::SizeFormat;
 use crate::{capture, login_item, settings_window};
 
 // Menu item tags. Submenu choices add their index to a base.
@@ -43,6 +44,10 @@ pub(super) const ZOOM_BASE: isize = 600;
 pub(super) const GRID_BASE: isize = 700;
 pub(super) const RECENT_BASE: isize = 800;
 pub(super) const CHECK_UPDATES: isize = 17;
+pub(super) const OVERLAY_CHOOSE: isize = 18;
+pub(super) const OVERLAY_SHOW: isize = 19;
+pub(super) const OVERLAY_REMOVE: isize = 20;
+pub(super) const SIZE_FORMAT_BASE: isize = 900;
 pub(super) const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
 
 pub(super) fn item(menu: &NSMenu, title: &str, tag: isize, target: &Target) -> Retained<NSMenuItem> {
@@ -156,6 +161,16 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
     let formats = submenu(menu, "Color Format");
     for (i, f) in ColorFormat::ALL.iter().enumerate() {
         check(&formats, f.name(), FORMAT_BASE + i as isize, s.color_format == *f, target);
+    }
+    let sizes = submenu(menu, "Size Format");
+    for (i, f) in SizeFormat::ALL.iter().enumerate() {
+        check(&sizes, f.name(), SIZE_FORMAT_BASE + i as isize, s.size_format == *f, target);
+    }
+    let overlay = submenu(menu, "Design Overlay");
+    item(&overlay, "Choose Image…", OVERLAY_CHOOSE, target);
+    if !s.overlay_image.is_empty() {
+        check(&overlay, "Show While Measuring", OVERLAY_SHOW, s.overlay_visible, target);
+        item(&overlay, "Remove Image", OVERLAY_REMOVE, target);
     }
     let directions = submenu(menu, "Measure Directions");
     for (i, a) in AXES.iter().enumerate() {
@@ -273,6 +288,30 @@ pub(super) fn menu_action(tag: isize) {
             }
         }
         CHECK_UPDATES => crate::updates::check(mtm),
+        OVERLAY_CHOOSE => {
+            let app = NSApplication::sharedApplication(mtm);
+            app.activate();
+            let panel = objc2_app_kit::NSOpenPanel::openPanel(mtm);
+            panel.setCanChooseFiles(true);
+            panel.setCanChooseDirectories(false);
+            panel.setMessage(Some(&NSString::from_str(&t!("Choose a design image to lay over the screen"))));
+            if panel.runModal() == objc2_app_kit::NSModalResponseOK
+                && let Some(path) = panel.URL().and_then(|u| u.path())
+            {
+                change_settings(|s| {
+                    s.overlay_image = path.to_string();
+                    s.overlay_visible = true;
+                });
+            }
+        }
+        OVERLAY_SHOW => change_settings(|s| s.overlay_visible = !s.overlay_visible),
+        OVERLAY_REMOVE => change_settings(|s| {
+            s.overlay_image.clear();
+            s.overlay_visible = false;
+        }),
+        t if (SIZE_FORMAT_BASE..SIZE_FORMAT_BASE + SizeFormat::ALL.len() as isize).contains(&t) => {
+            change_settings(|s| s.size_format = SizeFormat::ALL[(t - SIZE_FORMAT_BASE) as usize])
+        }
         ABOUT => {
             let app = NSApplication::sharedApplication(mtm);
             app.activate();

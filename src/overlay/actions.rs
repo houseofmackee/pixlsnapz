@@ -24,7 +24,7 @@ pub(super) fn set_clipboard_string(text: &str) {
 
 /// Copies the current measurement as "W × H". Returns whether there was one.
 pub(super) fn copy_size() -> bool {
-    let text = SESSION.with(|s| s.borrow().as_ref().and_then(Session::copy_text));
+    let text = SESSION.with(|s| s.borrow().as_ref().and_then(Session::clipboard_text));
     let Some(text) = text else { return false };
     set_clipboard_string(&text);
     update(|s| s.toast(t!("Copied {text}", text)));
@@ -95,16 +95,16 @@ pub(super) fn copy_average_color() {
 /// screenshot (points).
 const STAMP_MARGIN: f64 = 64.0;
 
-/// Saves (or copies) a PNG of the last area, or of the display when there is
-/// none, with the measurements drawn in unless that is turned off (M).
-/// Option toggles padding around the area.
-pub(super) fn screenshot(save: bool, padded: bool) {
+/// A PNG of the last area, or of the display when there is none, with the
+/// measurements drawn in when `stamp` (and there are any). `padded` adds
+/// room around the area.
+fn area_png(padded: bool, stamp: bool) -> Option<Vec<u8>> {
     let plan = SESSION.with(|s| {
         let s = s.borrow();
         let s = s.as_ref()?;
         let (i, r) = s.screenshot_area()?;
         let o = &s.overlays[i];
-        let stamp = s.settings.stamp_screenshots && !s.items.is_empty();
+        let stamp = stamp && !s.items.is_empty();
         let mut pad = if padded { SCREENSHOT_PADDING } else { 0.0 };
         if stamp {
             pad = pad.max(STAMP_MARGIN);
@@ -116,17 +116,26 @@ pub(super) fn screenshot(save: bool, padded: bool) {
             x1: r.x1 + pad,
             y1: r.y1 + pad,
         });
-        Some((i, r, stamp, o.view.clone(), o.rect_pt(r), s.settings.screenshot_dir()))
+        Some((i, r, stamp, o.view.clone(), o.rect_pt(r)))
+    })?;
+    let (i, r, stamp, view, rect) = plan;
+    if stamp {
+        stamped_png(&view, rect)
+    } else {
+        SESSION.with(|s| png_of(&s.borrow().as_ref()?.overlays[i].shot.image, r))
+    }
+}
+
+/// Saves (or copies) a PNG of the last area, or of the display when there is
+/// none, with the measurements drawn in unless that is turned off (M).
+/// Option toggles padding around the area.
+pub(super) fn screenshot(save: bool, padded: bool) {
+    let (stamp, dir) = SESSION.with(|s| {
+        s.borrow()
+            .as_ref()
+            .map_or((true, PathBuf::new()), |s| (s.settings.stamp_screenshots, s.settings.screenshot_dir()))
     });
-    let png = plan.as_ref().and_then(|(i, r, stamp, view, rect, _)| {
-        if *stamp {
-            stamped_png(view, *rect)
-        } else {
-            SESSION.with(|s| png_of(&s.borrow().as_ref()?.overlays[*i].shot.image, *r))
-        }
-    });
-    let result: Option<(Vec<u8>, PathBuf)> = png.zip(plan.map(|p| p.5));
-    let Some((png, dir)) = result else {
+    let Some(png) = area_png(padded, stamp) else {
         update(|s| s.toast(t!("Could not take the screenshot")));
         return;
     };
@@ -147,6 +156,96 @@ pub(super) fn screenshot(save: bool, padded: bool) {
         // SAFETY: a static constant.
         pasteboard.setData_forType(Some(&data), unsafe { NSPasteboardTypePNG });
         update(|s| s.toast(t!("Screenshot copied")));
+    }
+}
+
+/// ⌘E: the last area (or the display) with its measurements, opened in
+/// CleanShotZ's editor to annotate. Measuring ends, so the editor comes to
+/// the front.
+pub(super) fn send_to_cleanshotz() {
+    let workspace = objc2_app_kit::NSWorkspace::sharedWorkspace();
+    let installed = workspace
+        .URLForApplicationWithBundleIdentifier(&NSString::from_str(crate::integrations::CLEANSHOTZ_BUNDLE_ID))
+        .is_some();
+    if !installed {
+        update(|s| s.toast(t!("CleanShotZ is not installed")));
+        return;
+    }
+    let Some(png) = area_png(false, true) else {
+        update(|s| s.toast(t!("Could not take the screenshot")));
+        return;
+    };
+    let dir = dirs::cache_dir().unwrap_or_else(std::env::temp_dir).join("PixlSnapz");
+    let path = dir.join(format!("PixlSnapz {}.png", chrono_like_now()));
+    if let Err(e) = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, &png)) {
+        tracing::warn!("writing {}: {e}", path.display());
+        update(|s| s.toast(t!("Could not save the screenshot")));
+        return;
+    }
+    end();
+    let url = crate::integrations::cleanshotz_annotate_url(&path.to_string_lossy());
+    match objc2_foundation::NSURL::URLWithString(&NSString::from_str(&url)) {
+        Some(url) => {
+            workspace.openURL(&url);
+        }
+        None => tracing::warn!("not a URL: {url}"),
+    }
+}
+
+/// Loads the design overlay image at `path`: the image and its size in
+/// pixels (for vector images, at 2 pixels per point).
+pub(super) fn load_overlay_image(path: &str) -> Option<(Retained<NSImage>, f64, f64)> {
+    if path.is_empty() {
+        return None;
+    }
+    let image = NSImage::initWithContentsOfFile(NSImage::alloc(), &NSString::from_str(path))?;
+    let reps = image.representations();
+    let rep = reps.firstObject()?;
+    let (mut w, mut h) = (rep.pixelsWide() as f64, rep.pixelsHigh() as f64);
+    if w <= 0.0 || h <= 0.0 {
+        let size = image.size();
+        (w, h) = (size.width * 2.0, size.height * 2.0);
+    }
+    Some((image, w, h))
+}
+
+/// Asks for a design image (above the overlay) and shows it, with its
+/// top-left corner at the last kept box, or the screen's top-left.
+pub(super) fn choose_overlay_image() {
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let panel = objc2_app_kit::NSOpenPanel::openPanel(mtm);
+    panel.setCanChooseFiles(true);
+    panel.setCanChooseDirectories(false);
+    panel.setMessage(Some(&NSString::from_str(&t!("Choose a design image to lay over the screen"))));
+    panel.setLevel(LEVEL + 1);
+    NSCursor::unhide();
+    let chosen = if panel.runModal() == objc2_app_kit::NSModalResponseOK {
+        panel.URL().and_then(|u| u.path()).map(|p| p.to_string())
+    } else {
+        None
+    };
+    NSCursor::hide();
+    blank_cursor().set();
+    // The panel took the keyboard; give it back to the overlay.
+    let key = SESSION.with(|s| {
+        s.borrow().as_ref().map(|s| (s.overlays[s.active].window.clone(), s.overlays[s.active].view.clone()))
+    });
+    if let Some((window, view)) = key {
+        window.makeKeyAndOrderFront(None);
+        window.makeFirstResponder(Some(&view));
+    }
+    let Some(path) = chosen else { return };
+    match load_overlay_image(&path) {
+        Some(image) => update(|s| {
+            s.overlay_image = Some(image);
+            let corner = s.last_area().map_or((0.0, 0.0), |(_, r)| (r.x0 as f64, r.y0 as f64));
+            (s.settings.overlay_x, s.settings.overlay_y) = corner;
+            s.settings.overlay_image = path;
+            s.settings.overlay_visible = true;
+            s.save_settings();
+            s.toast(t!("Design overlay: ⇧I opacity, ⌘ arrows move, ⌘I to the pointer"));
+        }),
+        None => update(|s| s.toast(t!("Not an image"))),
     }
 }
 

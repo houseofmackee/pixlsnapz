@@ -296,7 +296,11 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
         .collect();
     SESSION.with(|s| {
         let items = kept.map(|k| k.place(&displays)).unwrap_or_default();
-        *s.borrow_mut() = Some(Session::new(overlays, settings, active, Some(hover), items));
+        let mut session = Session::new(overlays, settings, active, Some(hover), items);
+        if session.settings.overlay_visible {
+            session.overlay_image = load_overlay_image(&session.settings.overlay_image);
+        }
+        *s.borrow_mut() = Some(session);
     });
 
     let app = NSApplication::sharedApplication(mtm);
