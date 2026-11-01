@@ -110,7 +110,7 @@ sparkle_dir() {
     if [ ! -d "$dir/Sparkle.framework" ] || [ ! -f "$dir/LICENSE" ] || [ ! -x "$dir/bin/sign_update" ]; then
         mkdir -p target/sparkle
         archive="target/sparkle/Sparkle-$SPARKLE_VERSION.tar.xz"
-        curl -sSfL -o "$archive" \
+        curl -sSfL --retry 4 --retry-all-errors --connect-timeout 20 -o "$archive" \
             "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
         if [ "$(shasum -a 256 "$archive" | cut -d' ' -f1)" != "$SPARKLE_SHA256" ]; then
             rm -f "$archive"
