@@ -18,6 +18,14 @@ the GitHub release shows.
   pointer can be read on request.
 - With Increase Contrast or Reduce Transparency on, lines are thicker and
   labels opaque with an outline.
+- German, French, and Spanish, following the system language: the menu,
+  Settings, alerts, messages, hints, and VoiceOver announcements.
+  Measurements and copied text stay as they are.
+
+### Changed
+
+- Settings controls grow to fit their text, so longer translations are
+  not cut off.
 
 ## [0.1.1] - 2026-11-01
 

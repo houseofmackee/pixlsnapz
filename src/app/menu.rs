@@ -51,7 +51,7 @@ pub(super) fn item(menu: &NSMenu, title: &str, tag: isize, target: &Target) -> R
     let item = unsafe {
         NSMenuItem::initWithTitle_action_keyEquivalent(
             NSMenuItem::alloc(mtm),
-            &NSString::from_str(title),
+            &NSString::from_str(&crate::i18n::tr(title)),
             Some(sel!(menuAction:)),
             &NSString::from_str(""),
         )
@@ -71,7 +71,7 @@ pub(super) fn check(menu: &NSMenu, title: &str, tag: isize, on: bool, target: &T
 pub(super) fn submenu(menu: &NSMenu, title: &str) -> Retained<NSMenu> {
     let mtm = mtm();
     let parent = NSMenuItem::new(mtm);
-    parent.setTitle(&NSString::from_str(title));
+    parent.setTitle(&NSString::from_str(&crate::i18n::tr(title)));
     let sub = NSMenu::new(mtm);
     parent.setSubmenu(Some(&sub));
     menu.addItem(&parent);
@@ -104,9 +104,9 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
     let front = APP.with(|a| a.borrow().as_ref().and_then(|a| a.front_app.clone()));
     if let Some((id, name)) = front {
         let title = if s.shortcut_enabled_in(&id) {
-            format!("Turn Off Shortcut in {name}")
+            t!("Turn Off Shortcut in {name}", name)
         } else {
-            format!("Turn On Shortcut in {name}")
+            t!("Turn On Shortcut in {name}", name)
         };
         item(menu, &title, TOGGLE_APP, target);
     }
@@ -116,13 +116,13 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
         // No action: shown disabled.
         recent.addItem(&NSMenuItem::new(mtm));
         if let Some(empty) = recent.itemAtIndex(0) {
-            empty.setTitle(&NSString::from_str("No Colors Yet"));
+            empty.setTitle(&NSString::from_str(&t!("No Colors Yet")));
         }
     } else {
         // Hex titles keep the menu narrow; clicking copies the chosen format.
         recent.addItem(&NSMenuItem::new(mtm));
         if let Some(header) = recent.itemAtIndex(0) {
-            header.setTitle(&NSString::from_str(&format!("Click to Copy as {}", s.color_format.name())));
+            header.setTitle(&NSString::from_str(&t!("Click to Copy as {format}", format = s.color_format.name())));
         }
         for (i, rgb) in history.colors.iter().enumerate() {
             let it = item(&recent, &ColorFormat::Hex.format(*rgb), RECENT_BASE + i as isize, target);
@@ -178,8 +178,8 @@ pub(super) fn build_menu(menu: &NSMenu, target: &Target) {
     menu.addItem(&NSMenuItem::separatorItem(mtm));
     if crate::updates::available() {
         let title = match crate::updates::found() {
-            Some(version) => format!("Update to PixlSnapz {version}…"),
-            None => "Check for Updates…".to_string(),
+            Some(version) => t!("Update to PixlSnapz {version}…", version),
+            None => t!("Check for Updates…"),
         };
         item(menu, &title, CHECK_UPDATES, target);
     }
@@ -242,7 +242,7 @@ pub(super) fn menu_action(tag: isize) {
         FREEZE => change_settings(|s| s.freeze = !s.freeze),
         LOGIN => {
             if let Some(message) = login_item::set(!login_item::is_enabled()) {
-                alert("Launch at Login", &message, &["OK"]);
+                alert(&t!("Launch at Login"), &message, &[n!("OK")]);
             }
         }
         OPEN_SETTINGS => open_settings_file(),

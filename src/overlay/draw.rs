@@ -356,12 +356,14 @@ pub(super) fn draw_alignment(o: &Overlay, x: usize, y: usize, rgb: [f64; 3]) {
 }
 
 pub(super) const HINTS: [&str; 3] = [
-    "Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  \
-     Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge",
-    "X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  \
-     ⇧Z vision  ·  N smooth edges  ·  D ⇧D design zoom  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast",
-    "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  \
-     R restore  ·  ? hints  ·  Esc done",
+    n!("Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  \
+     Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge"),
+    n!("X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  \
+     ⇧Z vision  ·  N smooth edges  ·  D ⇧D design zoom  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast"),
+    n!(
+        "⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  \
+     R restore  ·  ? hints  ·  Esc done"
+    ),
 ];
 
 pub(super) fn draw(index: usize) {
@@ -421,6 +423,7 @@ pub(super) fn draw(index: usize) {
 
         if s.settings.show_hints {
             for (row, hint) in HINTS.iter().enumerate() {
+                let hint = &crate::i18n::tr(hint);
                 let w = pill_size(hint, 11.0).width;
                 // Above the Dock, which covers the bottom of the screen.
                 let y = o.safe_bottom - 8.0 - (HINTS.len() - row) as f64 * 22.0;

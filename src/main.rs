@@ -22,8 +22,21 @@ fn main() -> ExitCode {
         .with_writer(std::io::stderr)
         .init();
 
-    // Launch Services may pass a `-psn_*` process serial number argument.
-    let args: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with("-psn_")).collect();
+    // Launch Services may pass a `-psn_*` process serial number argument, and
+    // Cocoa reads defaults given as `-Name value` pairs, such as
+    // `-AppleLanguages "(de)"` to try a translation; both are not ours.
+    let mut args = Vec::new();
+    let mut rest = std::env::args().skip(1);
+    while let Some(arg) = rest.next() {
+        if arg.starts_with("-psn_") {
+            continue;
+        }
+        if arg.starts_with("-Apple") || arg.starts_with("-NS") {
+            rest.next();
+            continue;
+        }
+        args.push(arg);
+    }
     match args.first().map(String::as_str) {
         None => match app::run() {
             Ok(()) => ExitCode::SUCCESS,

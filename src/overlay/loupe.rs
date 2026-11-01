@@ -106,7 +106,7 @@ pub(super) fn draw_loupe(s: &Session, o: &Overlay, x: usize, y: usize, cursor: N
     let color_text = s.settings.color_format.short(o.shot.frame.pixel(x, y));
     let mut text = format!("{color_text}   {}, {}", at(x), at(y));
     if s.settings.vision != Vision::Normal {
-        let name = s.settings.vision.name();
+        let name = &crate::i18n::tr(s.settings.vision.name());
         text.push_str("   ");
         text.push_str(name.split(' ').next().unwrap_or(name));
     }

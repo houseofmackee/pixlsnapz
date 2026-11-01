@@ -32,8 +32,8 @@ pub(super) fn add_disabled_app() {
     panel.setCanChooseFiles(true);
     panel.setTreatsFilePackagesAsDirectories(false);
     panel.setDirectoryURL(Some(&objc2_foundation::NSURL::fileURLWithPath(&ns("/Applications"))));
-    panel.setPrompt(Some(&ns("Turn Off Shortcut")));
-    panel.setMessage(Some(&ns("Choose an app in which the measure shortcut is left to the app.")));
+    panel.setPrompt(Some(&ns(&t!("Turn Off Shortcut"))));
+    panel.setMessage(Some(&ns(&t!("Choose an app in which the measure shortcut is left to the app."))));
     if panel.runModal() != NSModalResponseOK {
         return;
     }
@@ -48,7 +48,7 @@ pub(super) fn add_disabled_app() {
             }
             save_and_refresh(&s);
         }
-        None => crate::app::show_alert("Not an app", &format!("{path} has no bundle identifier.")),
+        None => crate::app::show_alert(&t!("Not an app"), &t!("{path} has no bundle identifier.", path)),
     }
 }
 
@@ -58,7 +58,7 @@ pub(super) fn choose_folder() {
     panel.setCanChooseDirectories(true);
     panel.setCanChooseFiles(false);
     panel.setCanCreateDirectories(true);
-    panel.setPrompt(Some(&ns("Choose")));
+    panel.setPrompt(Some(&ns(&t!("Choose"))));
     if panel.runModal() == NSModalResponseOK
         && let Some(path) = panel.URL().and_then(|u| u.path())
     {

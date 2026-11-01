@@ -19,6 +19,11 @@ cp target/release/pixlsnapz "$APP/Contents/MacOS/pixlsnapz"
 cp macos/Info.plist "$APP/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
 cp macos/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# Translations (en.lproj is the template, which also tells macOS that
+# English is supported).
+for lproj in macos/*.lproj; do
+    ditto "$lproj" "$APP/Contents/Resources/$(basename "$lproj")"
+done
 
 # Sparkle for updates, without the XPC services (only sandboxed apps use
 # them); the app loads it at runtime.

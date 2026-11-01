@@ -1,0 +1,2 @@
+/* The Screen Recording permission prompt. */
+"NSScreenCaptureUsageDescription" = "PixlSnapz sieht sich die Pixel auf deinem Bildschirm an, um die Kanten dessen zu finden, was du misst. Nichts wird gesichert oder gesendet.";

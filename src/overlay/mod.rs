@@ -109,7 +109,7 @@ fn keep_on_screen() {
         Some(s.overlays.iter().map(|o| o.window.clone()).collect::<Vec<_>>())
     });
     let Some(windows) = windows else {
-        update(|s| s.toast("Measure something first"));
+        update(|s| s.toast(t!("Measure something first")));
         return;
     };
     for w in &windows {
@@ -312,15 +312,15 @@ pub fn toggle(mtm: MainThreadMarker) -> Result<(), StartError> {
         view.setAccessibilityElement(true);
         // SAFETY: a static constant.
         view.setAccessibilityRole(Some(unsafe { NSAccessibilityGroupRole }));
-        view.setAccessibilityLabel(Some(&NSString::from_str("PixlSnapz measuring")));
-        view.setAccessibilityHelp(Some(&NSString::from_str(
+        view.setAccessibilityLabel(Some(&NSString::from_str(&t!("PixlSnapz measuring"))));
+        view.setAccessibilityHelp(Some(&NSString::from_str(&t!(
             "Move the pointer to measure the distances to the nearest edges; drag to measure an area. \
-             Command-C copies the measurement, Escape finishes.",
-        )));
+             Command-C copies the measurement, Escape finishes."
+        ))));
     }
     blank_cursor().set();
     NSCursor::hide();
-    announce("Measuring");
+    announce(&t!("Measuring"));
     describe_hover();
     tracing::debug!(
         "overlay ready in {:?}; key: {}, app active: {}",

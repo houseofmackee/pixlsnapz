@@ -9,6 +9,9 @@
 #[cfg(not(target_os = "macos"))]
 compile_error!("PixlSnapz only builds for macOS");
 
+#[macro_use]
+pub mod i18n;
+
 pub mod color;
 pub mod geometry;
 pub mod items;

@@ -5,6 +5,7 @@ use super::*;
 use objc2_app_kit::{NSEvent, NSEventModifierFlags};
 use objc2_foundation::NSPoint;
 
+use crate::i18n::tr;
 use crate::items::Item;
 use crate::measure::Direction;
 use crate::settings::{Grid, Settings};
@@ -85,54 +86,58 @@ pub(super) fn key_down(event: &NSEvent) {
         (false, "h") => update(|s| s.add_guide(false)),
         (false, "g") => update(|s| {
             s.items.retain(|(_, item)| !item.is_guide());
-            s.toast("Guides cleared");
+            s.toast(t!("Guides cleared"));
         }),
         (false, "c") => update(|s| {
             s.items.clear();
-            s.toast("Cleared");
+            s.toast(t!("Cleared"));
         }),
         (false, "r") => update(|s| {
             let n = s.restore();
-            s.toast(if n == 0 { "Nothing to restore".to_string() } else { format!("Restored {n} items") });
+            s.toast(if n == 0 { t!("Nothing to restore") } else { t!("Restored {n} items", n) });
         }),
         (false, "p") if shift => update(|s| {
             s.settings.color_format = s.settings.color_format.next();
             let name = s.settings.color_format.name();
-            s.toast(format!("Color format: {name}"));
+            s.toast(t!("Color format: {name}", name));
             s.save_settings();
         }),
         (false, "p") if option => copy_average_color(),
         (false, "p") => copy_color(),
         (false, "l") => update(|s| {
             s.tool = if s.tool == Tool::Line { Tool::Area } else { Tool::Line };
-            s.toast(if s.tool == Tool::Line { "Line tool: drag to measure length and angle" } else { "Area tool" });
+            s.toast(if s.tool == Tool::Line {
+                t!("Line tool: drag to measure length and angle")
+            } else {
+                t!("Area tool")
+            });
         }),
         (false, "e") => update(|s| {
             s.tool = if s.tool == Tool::Circle { Tool::Area } else { Tool::Circle };
-            s.toast(if s.tool == Tool::Circle { "Circle tool: drag from the center" } else { "Area tool" });
+            s.toast(if s.tool == Tool::Circle { t!("Circle tool: drag from the center") } else { t!("Area tool") });
         }),
         (false, "z") if shift => update(|s| {
             s.settings.vision = s.settings.vision.next();
             s.settings.loupe = true;
             let name = s.settings.vision.name();
-            s.toast(format!("Loupe: {name}"));
+            s.toast(t!("Loupe: {name}", name = tr(name)));
             s.save_settings();
         }),
-        (false, "m") => toggle_setting("Measurements in screenshots", |st| &mut st.stamp_screenshots),
-        (false, "n") => toggle_setting("Smooth edges (photos and gradients)", |st| &mut st.smooth_edges),
+        (false, "m") => toggle_setting(n!("Measurements in screenshots"), |st| &mut st.stamp_screenshots),
+        (false, "n") => toggle_setting(n!("Smooth edges (photos and gradients)"), |st| &mut st.smooth_edges),
         (false, "d") => update(|s| {
             s.settings.step_design_zoom(!shift);
             let zoom = s.settings.design_zoom;
             for o in &mut s.overlays {
                 o.measure.zoom = f64::from(zoom) / 100.0;
             }
-            s.toast(format!("Design zoom: {zoom}%"));
+            s.toast(t!("Design zoom: {zoom}%", zoom));
             s.save_settings();
         }),
         (false, "x") => update(|s| {
             s.settings.axes = s.settings.axes.next();
             let name = s.settings.axes.name();
-            s.toast(format!("Measure: {name}"));
+            s.toast(t!("Measure: {name}", name = tr(name)));
             s.save_settings();
         }),
         (false, "-") | (false, "=") | (false, "+") => update(|s| {
@@ -141,13 +146,13 @@ pub(super) fn key_down(event: &NSEvent) {
                 s.settings.step_loupe_zoom(zoom_in);
             }
             s.settings.loupe = true;
-            s.toast(format!("Loupe: {}×", s.settings.loupe_zoom));
+            s.toast(t!("Loupe: {zoom}×", zoom = s.settings.loupe_zoom));
             s.save_settings();
         }),
         (false, "u") => update(|s| {
             s.settings.units = s.settings.units.next();
             let name = s.settings.units.name();
-            s.toast(format!("Units: {name}"));
+            s.toast(t!("Units: {name}", name = tr(name)));
             s.save_settings();
         }),
         (false, "k") => pick_contrast(),
@@ -155,22 +160,22 @@ pub(super) fn key_down(event: &NSEvent) {
             s.settings.grid = s.settings.grid.next();
             let name = s.settings.grid.name();
             if s.settings.grid == Grid::Columns && !s.columns_fit() {
-                s.toast(format!("Grid: {name} (the columns do not fit in the last area; see Settings)"));
+                s.toast(t!("Grid: {name} (the columns do not fit in the last area; see Settings)", name = tr(name)));
             } else {
-                s.toast(format!("Grid: {name}"));
+                s.toast(t!("Grid: {name}", name = tr(name)));
             }
             s.save_settings();
         }),
         (false, "b") => keep_on_screen(),
         (false, "[") | (false, "]") => update(|s| {
             s.settings.step_tolerance(chars == "]");
-            s.toast(format!("Edge tolerance: {}", s.settings.tolerance_name()));
+            s.toast(t!("Edge tolerance: {name}", name = tr(&s.settings.tolerance_name())));
             s.save_settings();
         }),
-        (false, "s") => toggle_setting("Snap areas to content", |st| &mut st.snap_areas),
-        (false, "z") => toggle_setting("Loupe", |st| &mut st.loupe),
-        (false, "f") => toggle_setting("Freeze screen", |st| &mut st.freeze),
-        (false, "a") => toggle_setting("Aspect ratio", |st| &mut st.show_aspect_ratio),
+        (false, "s") => toggle_setting(n!("Snap areas to content"), |st| &mut st.snap_areas),
+        (false, "z") => toggle_setting(n!("Loupe"), |st| &mut st.loupe),
+        (false, "f") => toggle_setting(n!("Freeze screen"), |st| &mut st.freeze),
+        (false, "a") => toggle_setting(n!("Aspect ratio"), |st| &mut st.show_aspect_ratio),
         (false, "/") | (false, "?") => update(|s| {
             s.settings.show_hints = !s.settings.show_hints;
             s.save_settings();
@@ -184,7 +189,7 @@ pub(super) fn toggle_setting(name: &str, field: impl Fn(&mut Settings) -> &mut b
         let value = field(&mut s.settings);
         *value = !*value;
         let on = *value;
-        s.toast(format!("{name}: {}", if on { "on" } else { "off" }));
+        s.toast(if on { t!("{name}: on", name = tr(name)) } else { t!("{name}: off", name = tr(name)) });
         s.save_settings();
     });
 }

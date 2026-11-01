@@ -20,6 +20,7 @@ use crate::measure::{
 /// The least tolerance smooth edges use: neighboring pixels of a blurred
 /// screen differ a little even inside one surface.
 const SMOOTH_MIN_TOLERANCE: u8 = 8;
+use crate::i18n::tr;
 use crate::settings::{Axes, Settings, Units};
 
 /// What dragging measures.
@@ -189,7 +190,7 @@ impl Session {
         self.scroll -= whole;
         self.settings.adjust_tolerance(whole as i32 * TOLERANCE_PER_SCROLL);
         self.settings_dirty = true;
-        self.toast(format!("Edge tolerance: {}", self.settings.tolerance_name()));
+        self.toast(t!("Edge tolerance: {name}", name = tr(&self.settings.tolerance_name())));
     }
 
     pub(super) fn size_text(&self, w: usize, h: usize, scale: &Scale) -> String {
@@ -272,7 +273,7 @@ impl Session {
         };
         self.items.push((index, item));
         if let Some(text) = self.copy_text() {
-            announce(&format!("Kept {text}"));
+            announce(&t!("Kept {text}", text));
         }
     }
 

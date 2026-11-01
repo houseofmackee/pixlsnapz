@@ -1,0 +1,488 @@
+/* PixlSnapz's user-facing text in French.
+   Translated from the template, macos/en.lproj/Localizable.strings: when it
+   gains strings, add them here (python3 -I scripts/strings.py --check lists
+   what is missing). Translate the values (on the right), never the keys,
+   and keep every {placeholder}. */
+
+/* src/app/menu.rs */
+"About PixlSnapz" = "À propos de PixlSnapz";
+
+/* src/color.rs */
+"Achromatopsia (no color)" = "Achromatopsie (aucune couleur)";
+
+/* src/settings_window/mod.rs */
+"Add App…" = "Ajouter une app…";
+
+/* src/settings_window/recorder.rs */
+"Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)" = "Ajoutez ⌘, ⌥, ⌃ ou ⇧ (Échap pour annuler)";
+
+/* src/app/menu.rs */
+"Allow Screen Recording…" = "Autoriser l’enregistrement de l’écran…";
+
+/* src/units.rs */
+"angle" = "angle";
+
+/* src/overlay/keys.rs */
+"Area tool" = "Outil zone";
+
+/* src/overlay/keys.rs */
+"Aspect ratio" = "Rapport hauteur/largeur";
+
+/* src/settings_window/mod.rs */
+"Automatic" = "Automatique";
+
+/* src/settings.rs */
+"Both directions" = "Les deux directions";
+
+/* src/units.rs */
+"by" = "par";
+
+/* src/app/mod.rs */
+"Cancel" = "Annuler";
+
+/* src/settings_window/mod.rs */
+"Check for updates automatically" = "Rechercher les mises à jour automatiquement";
+
+/* src/app/menu.rs */
+"Check for Updates…" = "Rechercher les mises à jour…";
+
+/* src/settings_window/pickers.rs */
+"Choose" = "Choisir";
+
+/* src/settings_window/pickers.rs */
+"Choose an app in which the measure shortcut is left to the app." = "Choisissez une app à laquelle le raccourci de mesure est laissé.";
+
+/* src/settings_window/mod.rs */
+"Choose…" = "Choisir…";
+
+/* src/overlay/keys.rs */
+"Circle tool: drag from the center" = "Outil cercle : faites glisser depuis le centre";
+
+/* src/settings_window/mod.rs */
+"Clear" = "Effacer";
+
+/* src/app/menu.rs */
+"Clear Kept Measurements" = "Effacer les mesures conservées";
+
+/* src/app/menu.rs */
+"Clear Recent Colors" = "Effacer les couleurs récentes";
+
+/* src/overlay/keys.rs */
+"Cleared" = "Effacé";
+
+/* src/app/menu.rs */
+"Click to Copy as {format}" = "Cliquez pour copier en {format}";
+
+/* src/app/menu.rs */
+"Color" = "Couleur";
+
+/* src/app/menu.rs */
+"Color Format" = "Format de couleur";
+
+/* src/overlay/keys.rs */
+"Color format: {name}" = "Format de couleur : {name}";
+
+/* src/settings_window/mod.rs */
+"Colors & Loupe" = "Couleurs et loupe";
+
+/* src/settings.rs */
+"Column Grid" = "Grille de colonnes";
+
+/* src/settings_window/mod.rs */
+"Columns:" = "Colonnes :";
+
+/* src/overlay/actions.rs */
+"Contrast: point at the other color and press K" = "Contraste : pointez l’autre couleur et appuyez sur K";
+
+/* src/overlay/actions.rs */
+"Copied average {text}" = "Moyenne {text} copiée";
+
+/* src/overlay/actions.rs */
+"Copied contrast {text}" = "Contraste {text} copié";
+
+/* src/i18n.rs, src/overlay/actions.rs */
+"Copied {text}" = "{text} copié";
+
+/* src/settings_window/mod.rs */
+"Copy colors as:" = "Copier les couleurs en :";
+
+/* src/app/mod.rs */
+"Could not capture the screen" = "Impossible de capturer l’écran";
+
+/* src/overlay/actions.rs */
+"Could not save the screenshot" = "Impossible d’enregistrer la capture";
+
+/* src/overlay/actions.rs */
+"Could not take the screenshot" = "Impossible de faire la capture";
+
+/* src/settings.rs */
+"Cyan" = "Cyan";
+
+/* src/units.rs */
+"degrees" = "degrés";
+
+/* src/app/menu.rs */
+"Design Zoom" = "Zoom du design";
+
+/* src/settings_window/mod.rs */
+"Design zoom:" = "Zoom du design :";
+
+/* src/overlay/keys.rs */
+"Design zoom: {zoom}%" = "Zoom du design : {zoom} %";
+
+/* src/color.rs */
+"Deuteranopia (green-blind)" = "Deutéranopie (aveugle au vert)";
+
+/* src/units.rs */
+"diameter" = "diamètre";
+
+/* src/overlay/actions.rs */
+"Drag over an area first" = "Délimitez d’abord une zone";
+
+/* src/overlay/draw.rs */
+"Drag: area  ·  ⌘/right-drag: no snap  ·  ⌥-drag or L: line  ·  E: circle  ·  ⇧: crosshair, square, 45°  ·  Click: keep  ·  V H: guides  ·  ⌥ arrows: next edge" = "Glisser : zone  ·  ⌘/glisser-droit : sans ajustement  ·  ⌥-glisser ou L : ligne  ·  E : cercle  ·  ⇧ : réticule, carré, 45°  ·  Clic : conserver  ·  V H : repères  ·  ⌥ flèches : bord suivant";
+
+/* src/settings_window/mod.rs */
+"Draw the measurements into screenshots" = "Dessiner les mesures dans les captures";
+
+/* src/app/menu.rs */
+"Edge Tolerance" = "Tolérance des bords";
+
+/* src/settings_window/mod.rs */
+"Edge tolerance:" = "Tolérance des bords :";
+
+/* src/overlay/keys.rs, src/overlay/session.rs */
+"Edge tolerance: {name}" = "Tolérance des bords : {name}";
+
+/* src/settings.rs */
+"Exact" = "Exacte";
+
+/* src/overlay/keys.rs */
+"Freeze screen" = "Figer l’écran";
+
+/* src/app/menu.rs */
+"Freeze Screen While Measuring" = "Figer l’écran pendant la mesure";
+
+/* src/settings_window/mod.rs */
+"Freeze the screen while measuring" = "Figer l’écran pendant la mesure";
+
+/* src/settings_window/mod.rs */
+"General" = "Général";
+
+/* src/app/mod.rs */
+"Get Started" = "Commencer";
+
+/* src/settings.rs */
+"Green" = "Vert";
+
+/* src/app/menu.rs, src/settings_window/mod.rs */
+"Grid" = "Grille";
+
+/* src/settings_window/mod.rs */
+"Grid (O while measuring):" = "Grille (O pendant la mesure) :";
+
+/* src/overlay/keys.rs */
+"Grid: {name}" = "Grille : {name}";
+
+/* src/overlay/keys.rs */
+"Grid: {name} (the columns do not fit in the last area; see Settings)" = "Grille : {name} (les colonnes ne tiennent pas dans la dernière zone ; voir Réglages)";
+
+/* src/settings_window/mod.rs */
+"Guide color:" = "Couleur des repères :";
+
+/* src/overlay/keys.rs */
+"Guides cleared" = "Repères effacés";
+
+/* src/settings_window/mod.rs */
+"Gutter (pt):" = "Gouttière (pt) :";
+
+/* src/settings.rs */
+"High" = "Élevée";
+
+/* src/settings.rs */
+"Horizontal only" = "Horizontale seulement";
+
+/* src/settings.rs */
+"Inches" = "Pouces";
+
+/* src/units.rs */
+"inches" = "pouces";
+
+/* src/overlay/session.rs */
+"Kept {text}" = "{text} conservé";
+
+/* src/app/menu.rs, src/settings_window/mod.rs */
+"Launch at Login" = "Ouvrir à l’ouverture de session";
+
+/* src/settings_window/mod.rs */
+"Launch at login" = "Ouvrir à l’ouverture de session";
+
+/* src/login_item.rs */
+"Launch at login only works when running PixlSnapz.app." = "L’ouverture à l’ouverture de session ne fonctionne qu’avec PixlSnapz.app.";
+
+/* src/overlay/keys.rs */
+"Line tool: drag to measure length and angle" = "Outil ligne : faites glisser pour mesurer longueur et angle";
+
+/* src/overlay/keys.rs */
+"Loupe" = "Loupe";
+
+/* src/settings_window/mod.rs */
+"Loupe vision:" = "Vision de la loupe :";
+
+/* src/settings_window/mod.rs */
+"Loupe zoom:" = "Zoom de la loupe :";
+
+/* src/overlay/keys.rs */
+"Loupe: {name}" = "Loupe : {name}";
+
+/* src/overlay/keys.rs */
+"Loupe: {zoom}×" = "Loupe : {zoom}×";
+
+/* src/settings.rs */
+"Low" = "Faible";
+
+/* src/settings_window/mod.rs */
+"Margin (pt):" = "Marge (pt) :";
+
+/* src/app/menu.rs */
+"Measure" = "Mesurer";
+
+/* src/app/menu.rs */
+"Measure Directions" = "Directions de mesure";
+
+/* src/settings_window/mod.rs */
+"Measure shortcut:" = "Raccourci de mesure :";
+
+/* src/overlay/mod.rs */
+"Measure something first" = "Mesurez d’abord quelque chose";
+
+/* src/settings_window/mod.rs */
+"Measure:" = "Mesurer :";
+
+/* src/overlay/keys.rs */
+"Measure: {name}" = "Mesurer : {name}";
+
+/* src/overlay/keys.rs */
+"Measurements in screenshots" = "Mesures dans les captures";
+
+/* src/overlay/mod.rs, src/settings_window/mod.rs */
+"Measuring" = "Mesure";
+
+/* src/settings.rs */
+"Medium" = "Moyenne";
+
+/* src/settings.rs */
+"Millimeters" = "Millimètres";
+
+/* src/units.rs */
+"millimeters" = "millimètres";
+
+/* src/overlay/mod.rs */
+"Move the pointer to measure the distances to the nearest edges; drag to measure an area. Command-C copies the measurement, Escape finishes." = "Déplacez le pointeur pour mesurer les distances jusqu’aux bords les plus proches ; faites glisser pour mesurer une zone. Commande-C copie la mesure, Échap termine.";
+
+/* src/settings_window/mod.rs */
+"No apps" = "Aucune app";
+
+/* src/app/menu.rs */
+"No Colors Yet" = "Aucune couleur pour l’instant";
+
+/* src/color.rs */
+"Normal vision" = "Vision normale";
+
+/* src/settings_window/pickers.rs */
+"Not an app" = "Ce n’est pas une app";
+
+/* src/overlay/keys.rs */
+"Nothing to restore" = "Rien à restaurer";
+
+/* src/settings.rs */
+"Off" = "Désactivée";
+
+/* src/app/menu.rs, src/app/mod.rs */
+"OK" = "OK";
+
+/* src/settings_window/mod.rs */
+"Open Settings File" = "Ouvrir le fichier de réglages";
+
+/* src/app/mod.rs */
+"Open System Settings" = "Ouvrir Réglages Système";
+
+/* src/settings.rs */
+"Orange" = "Orange";
+
+/* src/settings.rs */
+"Pink" = "Rose";
+
+/* src/settings.rs */
+"Pixels" = "Pixels";
+
+/* src/units.rs */
+"pixels" = "pixels";
+
+/* src/app/mod.rs */
+"PixlSnapz is in the menu bar" = "PixlSnapz est dans la barre des menus";
+
+/* src/app/mod.rs */
+"PixlSnapz looks at the pixels on your screen to find edges; nothing is saved or sent anywhere. Turn on PixlSnapz in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen PixlSnapz." = "PixlSnapz examine les pixels de votre écran pour trouver les bords ; rien n’est enregistré ni envoyé. Activez PixlSnapz dans Réglages Système > Confidentialité et sécurité > Enregistrement de l’écran et de l’audio du système, puis quittez et rouvrez PixlSnapz.";
+
+/* src/overlay/mod.rs */
+"PixlSnapz measuring" = "Mesure PixlSnapz";
+
+/* src/app/mod.rs */
+"PixlSnapz needs Screen Recording permission" = "PixlSnapz a besoin de l’autorisation d’enregistrer l’écran";
+
+/* src/settings_window/mod.rs */
+"PixlSnapz Settings" = "Réglages de PixlSnapz";
+
+/* src/settings.rs */
+"Points" = "Points";
+
+/* src/units.rs */
+"points" = "points";
+
+/* src/app/mod.rs */
+"Press {shortcut} anywhere to measure: move the pointer to see distances, drag over something to measure it, and press Esc when done. The hints at the bottom of the screen list every shortcut." = "Appuyez sur {shortcut} n’importe où pour mesurer : déplacez le pointeur pour voir les distances, faites glisser sur un élément pour le mesurer, puis appuyez sur Échap pour terminer. Les indications en bas de l’écran listent tous les raccourcis.";
+
+/* src/color.rs */
+"Protanopia (red-blind)" = "Protanopie (aveugle au rouge)";
+
+/* src/settings.rs */
+"Purple" = "Violet";
+
+/* src/app/menu.rs */
+"Quit PixlSnapz" = "Quitter PixlSnapz";
+
+/* src/units.rs */
+"radius" = "rayon";
+
+/* src/app/menu.rs */
+"Recent Colors" = "Couleurs récentes";
+
+/* src/overlay/keys.rs */
+"Restored {n} items" = "{n} éléments restaurés";
+
+/* src/settings_window/mod.rs */
+"Save to:" = "Enregistrer dans :";
+
+/* src/overlay/actions.rs */
+"Saved to {folder}" = "Enregistré dans {folder}";
+
+/* src/settings_window/mod.rs */
+"Screen PPI (mm, in):" = "PPP de l’écran (mm, po) :";
+
+/* src/overlay/actions.rs */
+"Screenshot copied" = "Capture copiée";
+
+/* src/settings_window/mod.rs */
+"Screenshots" = "Captures";
+
+/* src/app/menu.rs */
+"Settings…" = "Réglages…";
+
+/* src/settings_window/mod.rs */
+"Shortcut off in:" = "Raccourci désactivé dans :";
+
+/* src/app/menu.rs */
+"Show Aspect Ratio" = "Afficher le rapport hauteur/largeur";
+
+/* src/app/menu.rs */
+"Show Loupe" = "Afficher la loupe";
+
+/* src/app/menu.rs */
+"Show Shortcut Hints" = "Afficher les indications de raccourcis";
+
+/* src/settings_window/mod.rs */
+"Show shortcut hints while measuring" = "Afficher les raccourcis pendant la mesure";
+
+/* src/settings_window/mod.rs */
+"Show the aspect ratio of areas" = "Afficher le rapport hauteur/largeur des zones";
+
+/* src/settings_window/mod.rs */
+"Show the loupe" = "Afficher la loupe";
+
+/* src/app/menu.rs */
+"Show Units" = "Afficher les unités";
+
+/* src/settings_window/mod.rs */
+"Show units (pt, px, mm, in)" = "Afficher les unités (pt, px, mm, in)";
+
+/* src/overlay/keys.rs */
+"Smooth edges (photos and gradients)" = "Bords adoucis (photos et dégradés)";
+
+/* src/settings_window/mod.rs */
+"Smooth edges for photos and gradients (N)" = "Bords adoucis pour photos et dégradés (N)";
+
+/* src/app/menu.rs */
+"Snap Areas to Content" = "Ajuster les zones au contenu";
+
+/* src/overlay/keys.rs */
+"Snap areas to content" = "Ajuster les zones au contenu";
+
+/* src/settings_window/mod.rs */
+"Snap areas to their content" = "Ajuster les zones à leur contenu";
+
+/* src/settings.rs */
+"Square Grid" = "Grille carrée";
+
+/* src/settings_window/mod.rs */
+"Square size (pt):" = "Taille des carrés (pt) :";
+
+/* src/app/mod.rs */
+"The shortcut is not available" = "Le raccourci n’est pas disponible";
+
+/* src/color.rs */
+"Tritanopia (blue-blind)" = "Tritanopie (aveugle au bleu)";
+
+/* src/settings_window/pickers.rs */
+"Turn Off Shortcut" = "Désactiver le raccourci";
+
+/* src/app/menu.rs */
+"Turn Off Shortcut in {name}" = "Désactiver le raccourci dans {name}";
+
+/* src/app/menu.rs */
+"Turn On Shortcut in {name}" = "Activer le raccourci dans {name}";
+
+/* src/settings_window/recorder.rs */
+"Type a shortcut (Esc cancels)" = "Tapez un raccourci (Échap pour annuler)";
+
+/* src/app/menu.rs */
+"Units" = "Unités";
+
+/* src/settings_window/mod.rs */
+"Units:" = "Unités :";
+
+/* src/i18n.rs, src/overlay/keys.rs */
+"Units: {name}" = "Unités : {name}";
+
+/* src/app/menu.rs */
+"Update to PixlSnapz {version}…" = "Mettre à jour vers PixlSnapz {version}…";
+
+/* src/settings.rs */
+"Vertical only" = "Verticale seulement";
+
+/* src/settings.rs */
+"Very High" = "Très élevée";
+
+/* src/overlay/draw.rs */
+"X: directions  ·  Scroll or [ ]: tolerance  ·  U units  ·  O grid  ·  F freeze  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  N smooth edges  ·  D ⇧D design zoom  ·  P color  ·  ⇧P format  ·  ⌥P average  ·  K contrast" = "X : directions  ·  Défilement ou [ ] : tolérance  ·  U unités  ·  O grille  ·  F figer  ·  Z loupe  ·  - + zoom  ·  ⇧Z vision  ·  N bords adoucis  ·  D ⇧D zoom du design  ·  P couleur  ·  ⇧P format  ·  ⌥P moyenne  ·  K contraste";
+
+/* src/settings.rs */
+"Yellow" = "Jaune";
+
+/* src/overlay/keys.rs */
+"{name}: off" = "{name} : désactivé";
+
+/* src/overlay/keys.rs */
+"{name}: on" = "{name} : activé";
+
+/* src/i18n.rs */
+"{n} items" = "{n} éléments";
+
+/* src/settings_window/pickers.rs */
+"{path} has no bundle identifier." = "{path} n’a pas d’identifiant de bundle.";
+
+/* src/app/mod.rs */
+"{shortcut} is used by another app. Choose another one in PixlSnapz Settings (menu bar icon > Settings…); you can still start measuring from the menu bar." = "{shortcut} est utilisé par une autre app. Choisissez-en un autre dans les Réglages de PixlSnapz (icône de la barre des menus > Réglages…) ; vous pouvez toujours lancer la mesure depuis la barre des menus.";
+
+/* src/overlay/draw.rs */
+"⌘C copy  ·  ⌘S ⇧⌘C screenshot  ·  M measurements in screenshots  ·  B keep on screen  ·  ⌫ undo  ·  C clear  ·  R restore  ·  ? hints  ·  Esc done" = "⌘C copier  ·  ⌘S ⇧⌘C capture  ·  M mesures dans les captures  ·  B garder à l’écran  ·  ⌫ annuler  ·  C effacer  ·  R restaurer  ·  ? indications  ·  Échap terminer";

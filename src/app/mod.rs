@@ -216,12 +216,13 @@ fn register_hotkey() {
     });
     if let Some(shortcut) = failed {
         alert(
-            "The shortcut is not available",
-            &format!(
+            &t!("The shortcut is not available"),
+            &t!(
                 "{shortcut} is used by another app. Choose another one in PixlSnapz Settings \
-                 (menu bar icon > Settings…); you can still start measuring from the menu bar."
+                 (menu bar icon > Settings…); you can still start measuring from the menu bar.",
+                shortcut
             ),
-            &["OK"],
+            &[n!("OK")],
         );
     }
 }
@@ -309,7 +310,7 @@ pub fn measure() {
             if !capture::has_permission(false) {
                 permission_alert();
             } else {
-                alert("Could not capture the screen", &format!("{e:#}"), &["OK"]);
+                alert(&t!("Could not capture the screen"), &format!("{e:#}"), &[n!("OK")]);
             }
         }
     }
@@ -317,11 +318,11 @@ pub fn measure() {
 
 fn permission_alert() {
     let choice = alert(
-        "PixlSnapz needs Screen Recording permission",
-        "PixlSnapz looks at the pixels on your screen to find edges; nothing is saved or sent anywhere. \
-         Turn on PixlSnapz in System Settings > Privacy & Security > Screen & System Audio Recording, \
-         then quit and reopen PixlSnapz.",
-        &["Open System Settings", "Cancel"],
+        &t!("PixlSnapz needs Screen Recording permission"),
+        &t!("PixlSnapz looks at the pixels on your screen to find edges; nothing is saved or sent anywhere. \
+             Turn on PixlSnapz in System Settings > Privacy & Security > Screen & System Audio Recording, \
+             then quit and reopen PixlSnapz."),
+        &[n!("Open System Settings"), n!("Cancel")],
     );
     if choice == 0 {
         open_url(SCREEN_RECORDING_SETTINGS);
@@ -331,13 +332,13 @@ fn permission_alert() {
 fn welcome() {
     let s = settings();
     alert(
-        "PixlSnapz is in the menu bar",
-        &format!(
-            "Press {} anywhere to measure: move the pointer to see distances, drag over something to measure it, \
-             and press Esc when done. The hints at the bottom of the screen list every shortcut.",
-            s.shortcut()
+        &t!("PixlSnapz is in the menu bar"),
+        &t!(
+            "Press {shortcut} anywhere to measure: move the pointer to see distances, drag over something to \
+             measure it, and press Esc when done. The hints at the bottom of the screen list every shortcut.",
+            shortcut = s.shortcut()
         ),
-        &["Get Started"],
+        &[n!("Get Started")],
     );
     change_settings(|_| {});
     if !capture::has_permission(false) {
@@ -358,8 +359,9 @@ fn alert(title: &str, message: &str, buttons: &[&str]) -> usize {
     a.setMessageText(&NSString::from_str(title));
     a.setInformativeText(&NSString::from_str(message));
     a.setAlertStyle(NSAlertStyle::Informational);
+    // Button titles come marked with n!, translated here.
     for b in buttons {
-        a.addButtonWithTitle(&NSString::from_str(b));
+        a.addButtonWithTitle(&NSString::from_str(&crate::i18n::tr(b)));
     }
     NSApplication::sharedApplication(mtm).activate();
     let response = a.runModal();

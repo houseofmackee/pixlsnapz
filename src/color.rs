@@ -134,11 +134,11 @@ impl Vision {
 
     pub fn name(self) -> &'static str {
         match self {
-            Vision::Normal => "Normal vision",
-            Vision::Protanopia => "Protanopia (red-blind)",
-            Vision::Deuteranopia => "Deuteranopia (green-blind)",
-            Vision::Tritanopia => "Tritanopia (blue-blind)",
-            Vision::Achromatopsia => "Achromatopsia (no color)",
+            Vision::Normal => n!("Normal vision"),
+            Vision::Protanopia => n!("Protanopia (red-blind)"),
+            Vision::Deuteranopia => n!("Deuteranopia (green-blind)"),
+            Vision::Tritanopia => n!("Tritanopia (blue-blind)"),
+            Vision::Achromatopsia => n!("Achromatopsia (no color)"),
         }
     }
 

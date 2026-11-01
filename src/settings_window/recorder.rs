@@ -25,7 +25,7 @@ pub(super) fn start_recording() {
     WINDOW.with(|w| {
         if let Some(w) = w.borrow().as_ref() {
             w.window.makeKeyAndOrderFront(None);
-            w.c.shortcut.setTitle(&ns("Type a shortcut (Esc cancels)"));
+            w.c.shortcut.setTitle(&ns(&t!("Type a shortcut (Esc cancels)")));
             tracing::debug!("recording a shortcut; settings window key: {}", w.window.isKeyWindow());
         }
     });
@@ -52,7 +52,7 @@ pub(super) fn start_recording() {
         } else {
             WINDOW.with(|w| {
                 if let Some(w) = w.borrow().as_ref() {
-                    w.c.shortcut.setTitle(&ns("Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)"));
+                    w.c.shortcut.setTitle(&ns(&t!("Add ⌘, ⌥, ⌃ or ⇧ (Esc cancels)")));
                 }
             });
         }

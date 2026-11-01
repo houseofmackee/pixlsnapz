@@ -27,7 +27,7 @@ pub(super) fn copy_size() -> bool {
     let text = SESSION.with(|s| s.borrow().as_ref().and_then(Session::copy_text));
     let Some(text) = text else { return false };
     set_clipboard_string(&text);
-    update(|s| s.toast(format!("Copied {text}")));
+    update(|s| s.toast(t!("Copied {text}", text)));
     true
 }
 
@@ -43,7 +43,7 @@ pub(super) fn copy_color() {
     if let Some((text, rgb)) = text {
         ColorHistory::remember(rgb);
         set_clipboard_string(&text);
-        update(|s| s.toast(format!("Copied {text}")));
+        update(|s| s.toast(t!("Copied {text}", text)));
     }
 }
 
@@ -57,13 +57,13 @@ pub(super) fn pick_contrast() {
         match s.contrast.take() {
             None => {
                 s.contrast = Some(here);
-                s.toast("Contrast: point at the other color and press K");
+                s.toast(t!("Contrast: point at the other color and press K"));
             }
             Some(first) => {
                 ColorHistory::remember(first);
                 ColorHistory::remember(here);
                 let text = contrast_text(first, here);
-                s.toast(format!("Copied contrast {text}"));
+                s.toast(t!("Copied contrast {text}", text = &text));
                 copied = Some(text);
             }
         }
@@ -85,9 +85,9 @@ pub(super) fn copy_average_color() {
         Some((text, rgb)) => {
             ColorHistory::remember(rgb);
             set_clipboard_string(&text);
-            update(|s| s.toast(format!("Copied average {text}")));
+            update(|s| s.toast(t!("Copied average {text}", text = &text)));
         }
-        None => update(|s| s.toast("Drag over an area first")),
+        None => update(|s| s.toast(t!("Drag over an area first"))),
     }
 }
 
@@ -127,17 +127,17 @@ pub(super) fn screenshot(save: bool, padded: bool) {
     });
     let result: Option<(Vec<u8>, PathBuf)> = png.zip(plan.map(|p| p.5));
     let Some((png, dir)) = result else {
-        update(|s| s.toast("Could not take the screenshot"));
+        update(|s| s.toast(t!("Could not take the screenshot")));
         return;
     };
     if save {
         let name = format!("PixlSnapz {}.png", chrono_like_now());
         let path = dir.join(name);
         match std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, &png)) {
-            Ok(()) => update(|s| s.toast(format!("Saved to {}", dir.display()))),
+            Ok(()) => update(|s| s.toast(t!("Saved to {folder}", folder = dir.display()))),
             Err(e) => {
                 tracing::warn!("saving {}: {e}", path.display());
-                update(|s| s.toast("Could not save the screenshot"));
+                update(|s| s.toast(t!("Could not save the screenshot")));
             }
         }
     } else {
@@ -146,7 +146,7 @@ pub(super) fn screenshot(save: bool, padded: bool) {
         let data = objc2_foundation::NSData::with_bytes(&png);
         // SAFETY: a static constant.
         pasteboard.setData_forType(Some(&data), unsafe { NSPasteboardTypePNG });
-        update(|s| s.toast("Screenshot copied"));
+        update(|s| s.toast(t!("Screenshot copied")));
     }
 }
 

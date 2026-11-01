@@ -15,6 +15,7 @@ use objc2_app_kit::{
 use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString};
 
 use crate::color::{ColorFormat, Vision};
+use crate::i18n::tr;
 use crate::settings::{Axes, COLORS, DESIGN_ZOOMS, Grid, LOUPE_ZOOMS, Settings, Units};
 
 mod pickers;
@@ -28,7 +29,8 @@ const HEIGHT: f64 = 380.0;
 const LABEL_WIDTH: f64 = 190.0;
 const ROW: f64 = 30.0;
 const KEY_ESCAPE: u16 = 53;
-const TAB_TITLES: [&str; 5] = ["General", "Measuring", "Colors & Loupe", "Grid", "Screenshots"];
+/// English tab titles (also what `select_tab` matches), translated when shown.
+const TAB_TITLES: [&str; 5] = [n!("General"), n!("Measuring"), n!("Colors & Loupe"), n!("Grid"), n!("Screenshots")];
 const AXES: [Axes; 3] = [Axes::Both, Axes::Horizontal, Axes::Vertical];
 
 define_class!(
@@ -140,14 +142,16 @@ impl Layout {
 
     /// A label on the left and `control` (with its width) on the right.
     fn row(&mut self, title: &str, control: &NSView, width: f64) {
-        let label = NSTextField::labelWithString(&ns(title), self.mtm);
+        let title = tr(title);
+        let label = NSTextField::labelWithString(&ns(&title), self.mtm);
         label.setAlignment(NSTextAlignment::Right);
         label.setFrame(rect(20.0, self.y() + 5.0, LABEL_WIDTH, 18.0));
         self.view.addSubview(&label);
         let h = control.fittingSize().height.clamp(18.0, 26.0);
-        control.setFrame(rect(LABEL_WIDTH + 30.0, self.y() + (ROW - h) / 2.0, width, h));
+        let width = self.fit_width(control, width);
+        control.setFrame(rect(CONTROL_X, self.y() + (ROW - h) / 2.0, width, h));
         // VoiceOver reads the row's title for the control next to it.
-        control.setAccessibilityLabel(Some(&ns(title.trim_end_matches(':'))));
+        control.setAccessibilityLabel(Some(&ns(title.trim_end_matches(':').trim_end())));
         self.view.addSubview(control);
         self.top -= ROW;
     }
@@ -155,15 +159,38 @@ impl Layout {
     /// A control with no label (checkboxes, which carry their own).
     fn plain(&mut self, control: &NSView, width: f64) {
         let h = control.fittingSize().height.clamp(18.0, 26.0);
-        control.setFrame(rect(LABEL_WIDTH + 30.0, self.y() + (ROW - h) / 2.0, width, h));
+        let width = self.fit_width(control, width);
+        control.setFrame(rect(CONTROL_X, self.y() + (ROW - h) / 2.0, width, h));
         self.view.addSubview(control);
         self.top -= ROW - 6.0;
     }
+
+    /// Buttons side by side in the control column, each as wide as its title.
+    fn buttons(&mut self, buttons: &[&NSButton]) {
+        let mut x = CONTROL_X - 6.0;
+        for b in buttons {
+            let w = b.fittingSize().width.max(70.0);
+            b.setFrame(rect(x, self.y(), w, ROW));
+            self.view.addSubview(b);
+            x += w + 4.0;
+        }
+        self.top -= ROW;
+    }
+
+    /// At least `width`, wide enough for the control's text (which may be a
+    /// longer translation), but not past the edge of the tab.
+    fn fit_width(&self, control: &NSView, width: f64) -> f64 {
+        let available = self.view.frame().size.width - CONTROL_X - 12.0;
+        width.max(control.fittingSize().width).min(available)
+    }
 }
+
+/// Where controls start, right of the row titles.
+const CONTROL_X: f64 = LABEL_WIDTH + 30.0;
 
 fn popup(titles: &[&str], target: &Target, mtm: MainThreadMarker) -> Retained<NSPopUpButton> {
     let p = NSPopUpButton::initWithFrame_pullsDown(NSPopUpButton::alloc(mtm), rect(0.0, 0.0, 200.0, 26.0), false);
-    let titles: Vec<Retained<NSString>> = titles.iter().map(|t| ns(t)).collect();
+    let titles: Vec<Retained<NSString>> = titles.iter().map(|t| ns(&tr(t))).collect();
     p.addItemsWithTitles(&NSArray::from_retained_slice(&titles));
     // SAFETY: the target outlives the window; the action exists on it.
     unsafe {
@@ -175,12 +202,12 @@ fn popup(titles: &[&str], target: &Target, mtm: MainThreadMarker) -> Retained<NS
 
 fn checkbox(title: &str, target: &Target, mtm: MainThreadMarker) -> Retained<NSButton> {
     // SAFETY: the target outlives the window; the action exists on it.
-    unsafe { NSButton::checkboxWithTitle_target_action(&ns(title), Some(target), Some(sel!(changed:)), mtm) }
+    unsafe { NSButton::checkboxWithTitle_target_action(&ns(&tr(title)), Some(target), Some(sel!(changed:)), mtm) }
 }
 
 fn button(title: &str, action: objc2::runtime::Sel, target: &Target, mtm: MainThreadMarker) -> Retained<NSButton> {
     // SAFETY: the target outlives the window; the action exists on it.
-    unsafe { NSButton::buttonWithTitle_target_action(&ns(title), Some(target), Some(action), mtm) }
+    unsafe { NSButton::buttonWithTitle_target_action(&ns(&tr(title)), Some(target), Some(action), mtm) }
 }
 
 fn number_field(target: &Target, mtm: MainThreadMarker) -> Retained<NSTextField> {
@@ -238,14 +265,14 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     };
     // SAFETY: the module keeps the window.
     unsafe { window.setReleasedWhenClosed(false) };
-    window.setTitle(&ns("PixlSnapz Settings"));
+    window.setTitle(&ns(&t!("PixlSnapz Settings")));
     let tabs = NSTabView::initWithFrame(NSTabView::alloc(mtm), rect(12.0, 10.0, WIDTH - 24.0, HEIGHT - 16.0));
     let content = tabs.contentRect().size;
     // A view for each tab, with rows laid out from its top.
     let page = |title: &str| {
         let view = NSView::initWithFrame(NSView::alloc(mtm), rect(0.0, 0.0, content.width, content.height));
         let item = NSTabViewItem::new();
-        item.setLabel(&ns(title));
+        item.setLabel(&ns(&tr(title)));
         item.setView(Some(&view));
         tabs.addTabViewItem(&item);
         Layout { view, top: content.height - 14.0, mtm }
@@ -302,7 +329,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
         check_updates: checkbox("Check for updates automatically", t, mtm),
         smooth: checkbox("Smooth edges for photos and gradients (N)", t, mtm),
     };
-    c.ppi.setPlaceholderString(Some(&ns("Automatic")));
+    c.ppi.setPlaceholderString(Some(&ns(&t!("Automatic"))));
     // The slider describes its own value (below); the label repeats it.
     c.tolerance_value.setAccessibilityElement(false);
     c.folder.setLineBreakMode(objc2_app_kit::NSLineBreakMode::ByTruncatingMiddle);
@@ -313,15 +340,13 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     l.plain(&c.login, 280.0);
     l.plain(&c.hints, 280.0);
     l.plain(&c.check_updates, 280.0);
-    l.row("Shortcut off in:", &c.disabled_apps, 130.0);
+    l.row("Shortcut off in:", &c.disabled_apps, 300.0);
     let add = button("Add App…", sel!(addApp:), t, mtm);
-    add.setFrame(rect(LABEL_WIDTH + 165.0, l.top, 90.0, 30.0));
-    l.view.addSubview(&add);
     let clear = button("Clear", sel!(clearApps:), t, mtm);
-    clear.setFrame(rect(LABEL_WIDTH + 262.0, l.top, 70.0, 30.0));
-    l.view.addSubview(&clear);
+    l.buttons(&[&add, &clear]);
     let open = button("Open Settings File", sel!(openFile:), t, mtm);
-    open.setFrame(rect(content.width - 190.0, 14.0, 170.0, 30.0));
+    let open_width = open.fittingSize().width.max(170.0);
+    open.setFrame(rect(content.width - open_width - 14.0, 14.0, open_width, 30.0));
     l.view.addSubview(&open);
 
     let mut l = page(TAB_TITLES[1]);
@@ -330,7 +355,7 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     l.row("Design zoom:", &c.design_zoom, 160.0);
     l.row("Screen PPI (mm, in):", &c.ppi, 100.0);
     l.row("Edge tolerance:", &c.tolerance, 200.0);
-    c.tolerance_value.setFrame(rect(LABEL_WIDTH + 240.0, l.top + 6.0, 90.0, 18.0));
+    c.tolerance_value.setFrame(rect(LABEL_WIDTH + 240.0, l.top + 6.0, content.width - LABEL_WIDTH - 252.0, 18.0));
     l.view.addSubview(&c.tolerance_value);
     l.plain(&c.snap, 280.0);
     l.plain(&c.smooth, 300.0);
@@ -353,10 +378,9 @@ fn build(mtm: MainThreadMarker) -> SettingsWindow {
     l.row("Margin (pt):", &c.grid_margin, 80.0);
 
     let mut l = page(TAB_TITLES[4]);
-    l.row("Save to:", &c.folder, 200.0);
+    l.row("Save to:", &c.folder, 300.0);
     let choose = button("Choose…", sel!(chooseFolder:), t, mtm);
-    choose.setFrame(rect(LABEL_WIDTH + 240.0, l.top, 100.0, 30.0));
-    l.view.addSubview(&choose);
+    l.buttons(&[&choose]);
     l.plain(&c.stamp, 300.0);
 
     let root = NSView::initWithFrame(NSView::alloc(mtm), rect(0.0, 0.0, WIDTH, HEIGHT));
@@ -399,8 +423,12 @@ pub fn refresh() {
         c.design_zoom.selectItemAtIndex(zoom as isize);
         c.ppi.setStringValue(&ns(&if s.screen_ppi > 0.0 { number_text(s.screen_ppi) } else { String::new() }));
         c.tolerance.setDoubleValue(f64::from(s.tolerance));
-        c.tolerance_value.setStringValue(&ns(&s.tolerance_name()));
-        c.tolerance.setAccessibilityValueDescription(Some(&ns(&format!("{} ({})", s.tolerance_name(), s.tolerance))));
+        c.tolerance_value.setStringValue(&ns(&tr(&s.tolerance_name())));
+        c.tolerance.setAccessibilityValueDescription(Some(&ns(&format!(
+            "{} ({})",
+            tr(&s.tolerance_name()),
+            s.tolerance
+        ))));
         set_check(&c.snap, s.snap_areas);
         c.axes.selectItemAtIndex(AXES.iter().position(|a| *a == s.axes).unwrap_or(0) as isize);
         set_check(&c.aspect, s.show_aspect_ratio);
@@ -419,7 +447,7 @@ pub fn refresh() {
         c.grid_margin.setStringValue(&ns(&number_text(s.grid_margin)));
         c.folder.setStringValue(&ns(&s.screenshot_dir().display().to_string()));
         let apps: Vec<String> = s.disabled_apps.iter().map(|id| app_name(id)).collect();
-        let apps = if apps.is_empty() { "No apps".to_string() } else { apps.join(", ") };
+        let apps = if apps.is_empty() { t!("No apps") } else { apps.join(", ") };
         c.disabled_apps.setStringValue(&ns(&apps));
         c.disabled_apps.setToolTip(Some(&ns(&s.disabled_apps.join("\n"))));
         c.vision.selectItemAtIndex(Vision::ALL.iter().position(|v| *v == s.vision).unwrap_or(0) as isize);
@@ -484,7 +512,7 @@ fn controls_changed() {
     if login != crate::login_item::is_enabled()
         && let Some(message) = crate::login_item::set(login)
     {
-        crate::app::show_alert("Launch at Login", &message);
+        crate::app::show_alert(&t!("Launch at Login"), &message);
     }
     crate::app::settings_updated();
     refresh();
@@ -494,6 +522,21 @@ fn controls_changed() {
 /// describes each tab, top to bottom, as "tab | kind | text | VoiceOver
 /// label" lines, plus a list of layout problems: controls overlapping or
 /// outside their tab, and controls VoiceOver could not name.
+/// A control in the layout report.
+struct ReportRow {
+    /// The vertical center, negated so the top sorts first.
+    center: f64,
+    x: f64,
+    line: String,
+    frame: NSRect,
+    /// A control rather than a label.
+    control: bool,
+}
+
+/// How far apart (in points) the vertical centers of controls in one row
+/// may be.
+const ROW_TOLERANCE: f64 = 8.0;
+
 #[doc(hidden)]
 pub fn layout_report_for_tests(mtm: MainThreadMarker) -> (String, Vec<String>) {
     let built = build(mtm);
@@ -507,7 +550,7 @@ pub fn layout_report_for_tests(mtm: MainThreadMarker) -> (String, Vec<String>) {
         for (i, tab) in TAB_TITLES.iter().enumerate() {
             let Some(view) = w.tabs.tabViewItemAtIndex(i as isize).view(mtm) else { continue };
             let bounds = view.bounds();
-            let mut rows: Vec<(f64, f64, String, NSRect, bool)> = Vec::new();
+            let mut rows: Vec<ReportRow> = Vec::new();
             for sub in view.subviews().iter() {
                 let any: &AnyObject = sub.as_ref();
                 let (kind, text, needs_label) = if let Some(p) = any.downcast_ref::<NSPopUpButton>() {
@@ -523,16 +566,59 @@ pub fn layout_report_for_tests(mtm: MainThreadMarker) -> (String, Vec<String>) {
                 } else {
                     ("view", String::new(), false)
                 };
+                // Text that does not fit is cut off, unless the control is
+                // meant to truncate (the folder path, the list of apps).
+                let truncates = any.downcast_ref::<NSTextField>().is_some_and(|f| {
+                    matches!(
+                        f.lineBreakMode(),
+                        objc2_app_kit::NSLineBreakMode::ByTruncatingMiddle
+                            | objc2_app_kit::NSLineBreakMode::ByTruncatingTail
+                    )
+                });
+                let frame = sub.frame();
+                if kind != "view" && kind != "field" && kind != "slider" && !truncates {
+                    let needed = sub.fittingSize().width;
+                    if needed > frame.size.width + 1.0 {
+                        problems.push(format!(
+                            "{tab}: cut off ({needed:.0} of {:.0} points): {kind} {text:?}",
+                            frame.size.width
+                        ));
+                    }
+                }
                 let label = sub.accessibilityLabel().map(|l| l.to_string()).unwrap_or_default();
                 if needs_label && label.is_empty() {
                     problems.push(format!("{tab}: a {kind} has no VoiceOver label"));
                 }
                 let f = sub.frame();
                 let line = format!("{tab} | {kind} | {text} | {label}");
-                rows.push((-(f.origin.y + f.size.height), f.origin.x, line, f, kind != "label"));
+                // Sorted by the vertical center (negated: top first).
+                rows.push(ReportRow {
+                    center: -(f.origin.y + f.size.height / 2.0),
+                    x: f.origin.x,
+                    line,
+                    frame: f,
+                    control: kind != "label",
+                });
             }
-            rows.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
-            for (_, _, line, f, _) in &rows {
+            // Visual rows, top to bottom: controls whose vertical centers are
+            // within a few points share a row, read left to right. This
+            // does not depend on the exact heights macOS gives controls.
+            rows.sort_by(|a, b| a.center.total_cmp(&b.center));
+            let mut grouped: Vec<Vec<ReportRow>> = Vec::new();
+            for row in rows {
+                match grouped.last_mut() {
+                    Some(group) if (row.center - group[0].center).abs() <= ROW_TOLERANCE => group.push(row),
+                    _ => grouped.push(vec![row]),
+                }
+            }
+            let rows: Vec<ReportRow> = grouped
+                .into_iter()
+                .flat_map(|mut group| {
+                    group.sort_by(|a, b| a.x.total_cmp(&b.x));
+                    group
+                })
+                .collect();
+            for ReportRow { line, frame: f, .. } in &rows {
                 report.push_str(line.trim_end());
                 report.push('\n');
                 let inside = f.origin.x >= 0.0
@@ -544,16 +630,16 @@ pub fn layout_report_for_tests(mtm: MainThreadMarker) -> (String, Vec<String>) {
                 }
             }
             // Controls (not labels) must not overlap each other.
-            let controls: Vec<&(f64, f64, String, NSRect, bool)> = rows.iter().filter(|r| r.4).collect();
+            let controls: Vec<&ReportRow> = rows.iter().filter(|r| r.control).collect();
             for (a, ra) in controls.iter().enumerate() {
                 for rb in &controls[a + 1..] {
-                    let (fa, fb) = (ra.3, rb.3);
+                    let (fa, fb) = (ra.frame, rb.frame);
                     let overlap_x =
                         fa.origin.x < fb.origin.x + fb.size.width && fb.origin.x < fa.origin.x + fa.size.width;
                     let overlap_y =
                         fa.origin.y < fb.origin.y + fb.size.height && fb.origin.y < fa.origin.y + fa.size.height;
                     if overlap_x && overlap_y {
-                        problems.push(format!("{tab}: overlapping: {} and {}", ra.2, rb.2));
+                        problems.push(format!("{tab}: overlapping: {} and {}", ra.line, rb.line));
                     }
                 }
             }

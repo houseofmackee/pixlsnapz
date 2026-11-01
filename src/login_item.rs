@@ -16,7 +16,7 @@ pub fn is_enabled() -> bool {
 /// Turns launch at login on or off. Returns a message when it could not.
 pub fn set(enabled: bool) -> Option<String> {
     if !in_app_bundle() {
-        return Some("Launch at login only works when running PixlSnapz.app.".to_string());
+        return Some(t!("Launch at login only works when running PixlSnapz.app."));
     }
     // SAFETY: plain ServiceManagement calls for the main app bundle.
     let result = unsafe {

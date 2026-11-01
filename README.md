@@ -61,6 +61,10 @@ Or download `PixlSnapz-<version>-arm64.dmg` from the [releases page](https://git
 
 PixlSnapz lives in the menu bar. The first time you measure, macOS asks to allow **Screen Recording**: PixlSnapz looks at the pixels on screen to find edges. Turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen PixlSnapz. Nothing is saved or sent anywhere, except screenshots you save yourself.
 
+## Languages
+
+PixlSnapz is in English, German, French, and Spanish, following the language set in System Settings > General > Language & Region (also per app). Measurements, color codes, and everything copied to the clipboard stay as they are, in any language.
+
 ## Accessibility
 
 - VoiceOver reads every Settings control by its name, announces what happens while measuring (each kept measurement, copies, and mode changes, such as "Kept 140 by 38"), and can read the measurement under the pointer on request (the overlay's value).
@@ -169,7 +173,7 @@ scripts/make_icon.sh           # rebuild macos/AppIcon.icns after editing macos/
 open dist/PixlSnapz.app
 ```
 
-Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings folder, `PIXLSNAPZ_LOG=pixlsnapz=debug` enables verbose logging, and `PIXLSNAPZ_SHOW_SETTINGS=<tab>` (such as `measuring`) opens Settings at that tab on launch.
+To try a translation, start the app with `-AppleLanguages "(de)"` (or `fr`, `es`). Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings folder, `PIXLSNAPZ_LOG=pixlsnapz=debug` enables verbose logging, and `PIXLSNAPZ_SHOW_SETTINGS=<tab>` (such as `measuring`) opens Settings at that tab on launch.
 
 ## Development
 
@@ -177,15 +181,17 @@ Environment variables for testing: `PIXLSNAPZ_HOME` uses a different settings fo
 cargo test                     # unit tests, plus UI tests that build the real Settings window and render measurements (tests/)
 cargo clippy --all-targets
 scripts/readme_screenshots.sh  # regenerate docs/screenshots from a demo window (needs cliclick and Accessibility for the terminal)
+python3 -I scripts/strings.py  # update the translators' template after changing user-facing text (--check: CI's check)
 ```
 
-The edge detection (`src/measure.rs`), units (`src/units.rs`), and geometry (`src/geometry.rs`) work on plain numbers and RGBA buffers with no AppKit dependency, so they are fully unit tested. Two UI tests run without the test harness, because AppKit needs the main thread: `tests/settings_layout.rs` builds the real Settings window and checks that no control overlaps another or leaves its tab, that VoiceOver can name every control, and that each tab's content matches `tests/snapshots/settings_layout.txt` (after an intended change, review the diff and run `UPDATE_SNAPSHOTS=1 cargo test --test settings_layout`); `tests/overlay_render.rs` renders kept measurements over a made-up screenshot and checks the pixels where outlines, labels, guides, lines, and circles must be, also in high contrast. The rest is AppKit through `objc2`, in the library too so the UI tests can build it (`src/main.rs` is only the command line):
+The edge detection (`src/measure.rs`), units (`src/units.rs`), and geometry (`src/geometry.rs`) work on plain numbers and RGBA buffers with no AppKit dependency, so they are fully unit tested. Two UI tests run without the test harness, because AppKit needs the main thread: `tests/settings_layout.rs` builds the real Settings window in every language and checks that no control overlaps another, leaves its tab, or has its text cut off, that VoiceOver can name every control, and that each tab's content matches `tests/snapshots/settings_layout.txt` (after an intended change, review the diff and run `UPDATE_SNAPSHOTS=1 cargo test --test settings_layout`); `tests/overlay_render.rs` renders kept measurements over a made-up screenshot and checks the pixels where outlines, labels, guides, lines, and circles must be, also in high contrast. The rest is AppKit through `objc2`, in the library too so the UI tests can build it (`src/main.rs` is only the command line):
 
 - `src/capture.rs` takes a screenshot of each display with ScreenCaptureKit.
 - `src/overlay/` shows one transparent, non-activating panel per display: `mod.rs` (starting and ending a session, accessibility), `view.rs` (window, view, and mouse input), `session.rs` (session state and logic), `keys.rs` (keyboard commands), `actions.rs` (copying, contrast, and screenshots), `draw.rs` (drawing), and `loupe.rs` (the magnifier).
 - `src/settings_window/` is the Settings window (`mod.rs`), its shortcut recorder (`recorder.rs`), and its app and folder pickers (`pickers.rs`).
 - `src/app/` owns the menu bar item, the global shortcut (Carbon `RegisterEventHotKey`, which needs no extra permission), and alerts (`mod.rs`), and the menu (`menu.rs`).
 - `src/updates.rs` loads Sparkle at runtime.
+- `src/i18n.rs` translates text: `t!("…")` for literals (with named `{placeholders}`), `n!("…")` for names translated where shown. The menu, Settings, and alert helpers translate the titles passed to them. `scripts/strings.py` collects all of it into `macos/en.lproj/Localizable.strings`, the template; translations are `macos/<language>.lproj/Localizable.strings` (plus `InfoPlist.strings` for the Screen Recording prompt). To add a language, copy the template there, translate the values, add the language to `CFBundleLocalizations` in `macos/Info.plist`, and run the checks: the Settings layout test also checks every translation for cut-off text.
 
 GitHub Actions runs `cargo fmt --check`, `cargo clippy -D warnings` (debug and release), `cargo test`, a bundle build, and `cargo deny check` on every push to main and every pull request.
 

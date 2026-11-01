@@ -13,15 +13,16 @@ use crate::shortcut::Shortcut;
 /// Tolerance steps offered in the menu and with [ and ] in the overlay.
 /// Color choices offered in the menu.
 pub const COLORS: &[(&str, &str)] = &[
-    ("Pink", "#FF2D78"),
-    ("Orange", "#FF7A1A"),
-    ("Cyan", "#00C2FF"),
-    ("Green", "#2BD96B"),
-    ("Purple", "#9B5CFF"),
-    ("Yellow", "#FFD60A"),
+    (n!("Pink"), "#FF2D78"),
+    (n!("Orange"), "#FF7A1A"),
+    (n!("Cyan"), "#00C2FF"),
+    (n!("Green"), "#2BD96B"),
+    (n!("Purple"), "#9B5CFF"),
+    (n!("Yellow"), "#FFD60A"),
 ];
 
-pub const TOLERANCE_STEPS: &[(u8, &str)] = &[(0, "Exact"), (8, "Low"), (24, "Medium"), (48, "High"), (96, "Very High")];
+pub const TOLERANCE_STEPS: &[(u8, &str)] =
+    &[(0, n!("Exact")), (8, n!("Low")), (24, n!("Medium")), (48, n!("High")), (96, n!("Very High"))];
 
 /// Loupe magnifications, in screen points per pixel.
 pub const LOUPE_ZOOMS: &[u32] = &[4, 6, 8, 12, 16, 24, 32];
@@ -47,9 +48,9 @@ impl Axes {
 
     pub fn name(self) -> &'static str {
         match self {
-            Axes::Both => "Both directions",
-            Axes::Horizontal => "Horizontal only",
-            Axes::Vertical => "Vertical only",
+            Axes::Both => n!("Both directions"),
+            Axes::Horizontal => n!("Horizontal only"),
+            Axes::Vertical => n!("Vertical only"),
         }
     }
 
@@ -83,10 +84,10 @@ impl Units {
 
     pub fn name(self) -> &'static str {
         match self {
-            Units::Points => "Points",
-            Units::Pixels => "Pixels",
-            Units::Millimeters => "Millimeters",
-            Units::Inches => "Inches",
+            Units::Points => n!("Points"),
+            Units::Pixels => n!("Pixels"),
+            Units::Millimeters => n!("Millimeters"),
+            Units::Inches => n!("Inches"),
         }
     }
 
@@ -125,9 +126,9 @@ impl Grid {
 
     pub fn name(self) -> &'static str {
         match self {
-            Grid::Off => "Off",
-            Grid::Square => "Square Grid",
-            Grid::Columns => "Column Grid",
+            Grid::Off => n!("Off"),
+            Grid::Square => n!("Square Grid"),
+            Grid::Columns => n!("Column Grid"),
         }
     }
 }

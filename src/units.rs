@@ -1,6 +1,7 @@
 //! Converting lengths in pixels to points, pixels, millimeters, or inches,
 //! and formatting them for display.
 
+use crate::i18n::tr;
 use crate::settings::Units;
 
 /// How pixels of one display convert to other units.
@@ -86,16 +87,22 @@ pub fn aspect_ratio(w: usize, h: usize) -> String {
 /// degrees" for "12.5°".
 pub fn spoken(text: &str) -> String {
     let mut out = text
-        .replace(" × ", " by ")
+        .replace(" × ", &format!(" {} ", tr("by")))
         .replace("  ·  ", ", ")
         .replace(" · ", ", ")
-        .replace("  ∠ ", ", angle ")
-        .replace("⌀ ", "diameter ")
-        .replace('°', " degrees");
+        .replace("  ∠ ", &format!(", {} ", tr("angle")))
+        .replace("⌀ ", &format!("{} ", tr("diameter")))
+        .replace('°', &format!(" {}", tr("degrees")));
     if let Some(rest) = out.strip_prefix("r ") {
-        out = format!("radius {rest}");
+        out = format!("{} {rest}", tr("radius"));
     }
-    for (short, long) in [(" pt", " points"), (" px", " pixels"), (" mm", " millimeters"), (" in", " inches")] {
+    let units = [
+        (" pt", format!(" {}", tr("points"))),
+        (" px", format!(" {}", tr("pixels"))),
+        (" mm", format!(" {}", tr("millimeters"))),
+        (" in", format!(" {}", tr("inches"))),
+    ];
+    for (short, long) in units {
         out = out.replace(&format!("{short},"), &format!("{long},"));
         if let Some(stripped) = out.strip_suffix(short) {
             out = format!("{stripped}{long}");

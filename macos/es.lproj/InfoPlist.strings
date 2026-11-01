@@ -1,0 +1,2 @@
+/* The Screen Recording permission prompt. */
+"NSScreenCaptureUsageDescription" = "PixlSnapz mira los píxeles de tu pantalla para encontrar los bordes de lo que mides. No se guarda ni se envía nada.";
