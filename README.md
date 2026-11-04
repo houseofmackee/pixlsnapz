@@ -92,7 +92,7 @@ PixlSnapz is in English, German, French, and Spanish, following the language set
 
 ## Accessibility
 
-- VoiceOver reads every Settings control by its name, announces what happens while measuring (each kept measurement, copies, and mode changes, such as "Kept 140 by 38"), and can read the measurement under the pointer on request (the overlay's value).
+- VoiceOver reads every Settings control by its name, announces what happens while measuring (each kept measurement, copies, and mode changes, such as "Kept 140 by 38"), and can read the measurement under the pointer on request (the overlay's value). In the Colors window it reads each color's codes and announces copies and contrast; a floating ruler reads its length and angle, the pointer's position along it, and its keys.
 - With **Increase Contrast** or **Reduce Transparency** on (System Settings > Accessibility > Display), lines are twice as thick and labels are opaque with an outline.
 - Every tool, mode, and setting while measuring has a single-key shortcut, the arrow keys move the pointer by single pixels or jump from edge to edge, and the overlay never animates.
 

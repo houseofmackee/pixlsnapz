@@ -1,6 +1,6 @@
 [package]
 name = "pixlsnapz"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 description = "Measure anything on your screen: a native macOS screen ruler"
 license = "MIT OR Apache-2.0"

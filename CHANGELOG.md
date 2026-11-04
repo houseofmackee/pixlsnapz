@@ -7,6 +7,8 @@ the GitHub release shows.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-04
+
 ### Added
 
 - Floating rulers turn to any angle: drag the far end with ⌥ (⇧ snaps to
@@ -191,7 +193,8 @@ First release of PixlSnapz, a screen ruler for Apple silicon Macs
 - Freeze screen, aspect ratios, multiple displays, launch at login, and
   `pixlsnapz measure` and `pixlsnapz settings` for scripts and launchers.
 
-[Unreleased]: https://github.com/houseofmackee/pixlsnapz/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/houseofmackee/pixlsnapz/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/houseofmackee/pixlsnapz/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/houseofmackee/pixlsnapz/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/houseofmackee/pixlsnapz/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/houseofmackee/pixlsnapz/compare/v0.1.1...v0.2.0

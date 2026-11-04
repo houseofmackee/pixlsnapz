@@ -34,12 +34,12 @@ Work through this for every release, on an Apple silicon Mac.
 - [ ] Freeze, loupe, units, aspect ratio, tolerance, restore, and clear work, and the toggles persist.
 - [ ] Works over a full-screen app, in another Space, and with two displays; Esc, right click, and ⌘Tab end measuring.
 - [ ] ⌃ highlights a window (and, with Snap to Buttons and Fields and Accessibility allowed, a button); ⇧S and ⇧R save and load a set; ⇧F follows a scrolling page.
-- [ ] ⇧⌘2 picks a color; the Colors window copies, compares, saves, edits (right-click a color), renames, and exports palettes; rulers move, resize, rotate, take the arrow keys, and come back after a restart.
+- [ ] ⇧⌘2 picks a color; the Colors window copies, compares, saves, edits (right-click a color), renames, and exports palettes; rulers move, resize, turn to any angle (⌥-drag on the end, ⌥ arrows), take the arrow keys, let clicks through beside a turned ruler, and come back after a restart; ⌃-drag keeps a box around two elements.
 - [ ] ⇧S takes a typed or pasted set name.
 - [ ] Hold to measure starts and stops with the chosen keys, and the Shortcuts actions (Measure, Pick Color, New Ruler, Show Colors) run from the Shortcuts app.
 
 ## 4. Languages and accessibility
 
 - [ ] With PixlSnapz set to German, French, or Spanish (System Settings > General > Language & Region > Applications), the menu, Settings, the hints, and messages are translated, and nothing is cut off.
-- [ ] VoiceOver reads the Settings controls by name and announces kept measurements while measuring.
+- [ ] VoiceOver reads the Settings controls by name and announces kept measurements while measuring; it reads Colors window rows and announces copies, and reads a ruler's length, angle, and pointer position.
 - [ ] With Increase Contrast on, lines are thicker and labels outlined.
