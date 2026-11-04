@@ -640,6 +640,11 @@ pub(super) fn draw(index: usize) {
                         let r = line_length(d.end.x - d.start.x, d.end.y - d.start.y);
                         draw_circle(s, o, (px(d.start.x), px(d.start.y), px(r)), rgb);
                     }
+                    Tool::Span => {
+                        if let Some(r) = s.control_frame {
+                            draw_area(s, o, r, rgb);
+                        }
+                    }
                     Tool::Area => {
                         let r = o.rect_px(d.start, d.end);
                         draw_area(s, o, r, rgb);

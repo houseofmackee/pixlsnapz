@@ -194,7 +194,9 @@ pub fn refresh_colors() {
             row.setFont(Some(&NSFont::monospacedSystemFontOfSize_weight(12.0, 0.0)));
             row.setTag(n as isize);
             row.setFrame(rect(8.0, height - (n as f64 + 1.0) * ROW_H, clip.width - 16.0, ROW_H));
-            row.setAccessibilityLabel(Some(&ns(&t!("Copy {color}", color = ColorFormat::Hex.format(*rgb)))));
+            // VoiceOver reads all three codes, and how to use the row.
+            row.setAccessibilityLabel(Some(&ns(&title)));
+            row.setAccessibilityHelp(Some(&ns(&t!("Copies the color; right-click for palette actions"))));
             let menu = row_menu(n, c.shown.len(), palette.is_some(), &palettes, &target, mtm);
             // SAFETY: the row keeps its menu; its items target the shared target.
             unsafe { row.setMenu(Some(&menu)) };
@@ -366,10 +368,16 @@ pub(super) fn color_clicked(tag: isize) {
             c.picked.remove(0);
         }
         show_contrast(c);
-        Some(Settings::load().color_format.format(rgb))
+        let contrast = (c.picked.len() == 2).then(|| c.contrast.stringValue().to_string());
+        Some((Settings::load().color_format.format(rgb), contrast))
     });
-    if let Some(text) = copied {
+    if let Some((text, contrast)) = copied {
         crate::app::copy_to_clipboard(&text);
+        let message = t!("Copied {text}", text);
+        crate::overlay::announce(&match contrast {
+            Some(contrast) => format!("{message}. {contrast}"),
+            None => message,
+        });
     }
 }
 

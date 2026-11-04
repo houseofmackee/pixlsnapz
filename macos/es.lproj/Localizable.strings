@@ -37,6 +37,9 @@
 /* src/overlay/keys.rs */
 "Area tool" = "Herramienta de área";
 
+/* src/rulers.rs */
+"Arrow keys move it, Option arrows turn it, R turns it 90 degrees, Delete closes it; more in its menu" = "Las flechas la mueven, Opción y las flechas la giran, R la gira 90 grados, Eliminar la cierra; más en su menú";
+
 /* src/overlay/keys.rs */
 "Aspect ratio" = "Relación de aspecto";
 
@@ -139,8 +142,11 @@
 /* src/overlay/actions.rs */
 "Copied contrast {text}" = "Contraste {text} copiado";
 
-/* src/i18n.rs, src/overlay/actions.rs */
+/* src/i18n.rs, src/overlay/actions.rs, src/settings_window/colors.rs */
 "Copied {text}" = "{text} copiado";
+
+/* src/settings_window/colors.rs */
+"Copies the color; right-click for palette actions" = "Copia el color; clic derecho para acciones de paleta";
 
 /* src/settings_window/colors.rs */
 "Copy as" = "Copiar como";
@@ -153,9 +159,6 @@
 
 /* src/settings_window/mod.rs */
 "Copy sizes as:" = "Copiar tamaños como:";
-
-/* src/settings_window/colors.rs */
-"Copy {color}" = "Copiar {color}";
 
 /* src/app/mod.rs */
 "Could not capture the screen" = "No se pudo capturar la pantalla";
@@ -563,7 +566,7 @@
 "Rotate" = "Girar";
 
 /* src/rulers.rs */
-"Ruler" = "Regla";
+"Ruler, {length} long, at {angle}" = "Regla, de {length}, a {angle}";
 
 /* src/app/menu.rs */
 "Rulers" = "Reglas";
@@ -678,6 +681,9 @@
 
 /* macos/intents/Intents.swift */
 "Starts measuring on screen, optionally with a saved measurement set." = "Empieza a medir en pantalla, opcionalmente con un conjunto de medidas guardado.";
+
+/* src/rulers.rs */
+"Straighten" = "Enderezar";
 
 /* macos/intents/Intents.swift */
 "The name of a set saved with ⇧S while measuring." = "El nombre de un conjunto guardado con ⇧S al medir.";

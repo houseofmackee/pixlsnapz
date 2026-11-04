@@ -85,7 +85,9 @@ shot() { sleep 0.4; screencapture -x -R "$REGION" "$OUT/$1.png"; echo "Wrote $OU
 # whatever has keyboard focus) and waits until it has ended.
 finish() {
     before=$(grep -c "measuring ended" "$WORK/app.log" || true)
-    cliclick rc:"$(at content 940 580)"
+    # Moving first: a click on an overlay that appeared under a pointer that
+    # has not moved since can get lost.
+    cliclick m:"$(at content 936 576)" w:100 m:"$(at content 940 580)" w:100 rc:"$(at content 940 580)"
     for _ in $(seq 30); do
         [ "$(grep -c "measuring ended" "$WORK/app.log" || true)" -gt "$before" ] && return
         sleep 0.1

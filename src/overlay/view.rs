@@ -255,11 +255,18 @@ impl OverlayView {
             finish_picking();
             return;
         }
-        // ⌃-click keeps the window under the pointer.
-        if event.modifierFlags().contains(NSEventModifierFlags::Control) && !peek {
+        // ⌃-click keeps the element or window under the pointer; ⌃-drag the
+        // box around those under both ends (see `finish_span`).
+        // Left button only: a right-click always measures (or ends measuring),
+        // even if macOS still reports ⌃ held, as just after the shortcut.
+        let left = event.r#type() == objc2_app_kit::NSEventType::LeftMouseDown;
+        if left && event.modifierFlags().contains(NSEventModifierFlags::Control) && !peek {
             update(|s| {
                 s.active = index;
-                s.keep_window(index, p);
+                s.hover = Some(p);
+                s.span_anchor = s.window_at(index, p);
+                s.control_frame = s.span_anchor;
+                s.drag = Some(Drag { start: p, end: p, tool: Tool::Span, edit: None });
             });
             return;
         }
@@ -300,6 +307,10 @@ impl OverlayView {
                     let (dx, dy) = (p.x - d.end.x, p.y - d.end.y);
                     d.start = NSPoint::new(d.start.x + dx, d.start.y + dy);
                     d.end = p;
+                } else if d.tool == Tool::Span {
+                    d.end = p;
+                    let index = self.index();
+                    s.control_frame = s.span_frame(index, p);
                 } else if d.tool == Tool::Line {
                     d.end = if shift { snap_line(d.start, p) } else { p };
                     if !shift {
@@ -331,7 +342,9 @@ impl OverlayView {
             s.hover = Some(p);
             if let Some(d) = s.drag.take() {
                 let moved = (d.end.x - d.start.x).abs().max((d.end.y - d.start.y).abs());
-                if let Some(target) = d.edit {
+                if d.tool == Tool::Span {
+                    s.finish_span(index, d);
+                } else if let Some(target) = d.edit {
                     // A click on an item without moving it keeps a distance
                     // there, as anywhere else; an edit is announced.
                     if moved < CLICK_SLOP {

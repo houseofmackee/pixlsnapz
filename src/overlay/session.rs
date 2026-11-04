@@ -36,6 +36,9 @@ pub(super) enum Tool {
     Line,
     /// Radius and diameter from the center (E).
     Circle,
+    /// ⌃-drag: a box around the elements (or windows) under the start and
+    /// the end of the drag.
+    Span,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -177,6 +180,8 @@ pub(super) struct Session {
     pub(super) peek: bool,
     /// What ⌃ highlights at the pointer: an element or window frame.
     pub(super) control_frame: Option<PxRect>,
+    /// ⌃-drag: the element or window under the start of the drag.
+    pub(super) span_anchor: Option<PxRect>,
     /// Live mode (⇧F): edges follow the screen.
     pub(super) live: bool,
     pub(super) capturing: Option<super::live::Capturing>,
@@ -216,6 +221,7 @@ impl Session {
             picking: false,
             peek: false,
             control_frame: None,
+            span_anchor: None,
             live: false,
             capturing: None,
             last_capture: None,
@@ -248,6 +254,30 @@ impl Session {
             Some(p) => self.window_at(self.active, p),
             None => None,
         };
+    }
+
+    /// ⌃-drag: the box around the element or window where the drag started
+    /// and the one under `p`.
+    pub(super) fn span_frame(&self, index: usize, p: NSPoint) -> Option<PxRect> {
+        let a = self.span_anchor?;
+        let Some(b) = self.window_at(index, p) else { return Some(a) };
+        Some(PxRect { x0: a.x0.min(b.x0), y0: a.y0.min(b.y0), x1: a.x1.max(b.x1), y1: a.y1.max(b.y1) })
+    }
+
+    /// The end of a ⌃-drag: a click keeps the element or window under it,
+    /// a drag the box around both ends'.
+    pub(super) fn finish_span(&mut self, index: usize, d: Drag) {
+        let moved = (d.end.x - d.start.x).abs().max((d.end.y - d.start.y).abs());
+        if moved < CLICK_SLOP {
+            self.keep_window(index, d.start);
+        } else if let Some(r) = self.span_frame(index, d.end).filter(|r| r.width() > 0 && r.height() > 0) {
+            self.items.push((index, Item::Area(r)));
+            if let Some(text) = self.copy_text() {
+                announce(&t!("Kept {text}", text));
+            }
+        }
+        self.span_anchor = None;
+        self.update_control_frame();
     }
 
     pub(super) fn keep_window(&mut self, index: usize, p: NSPoint) {

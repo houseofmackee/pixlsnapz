@@ -153,7 +153,7 @@ pub(super) fn lw(width: f64) -> f64 {
 }
 
 /// Has VoiceOver (or another assistive app) read `text` out.
-pub(super) fn announce(text: &str) {
+pub fn announce(text: &str) {
     let Some(mtm) = MainThreadMarker::new() else { return };
     let app = NSApplication::sharedApplication(mtm);
     let message = NSString::from_str(&crate::units::spoken(text));
@@ -453,11 +453,23 @@ fn display_id(screen: &NSScreen) -> Option<u32> {
 /// screen behind, nothing interactive) over `frame`, one point per pixel
 /// of `frame`, and returns the drawn pixels.
 #[doc(hidden)]
+/// The pointer, for `render_for_tests`: what measuring shows live.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TestPointer {
+    /// Kept measurements only, as in a screenshot.
+    None,
+    /// Hovering at a point (in points), with ⌥ held or not.
+    Hover { x: f64, y: f64, option: bool },
+    /// Drawing a box from one point to another.
+    DragArea { from: (f64, f64), to: (f64, f64) },
+}
+
 pub fn render_for_tests(
     frame: crate::measure::Frame,
     items: Vec<crate::items::Item>,
     settings: Settings,
     high_contrast: bool,
+    pointer: TestPointer,
     mtm: MainThreadMarker,
 ) -> Option<crate::measure::Frame> {
     HIGH_CONTRAST.with(|h| h.set(high_contrast));
@@ -468,7 +480,18 @@ pub fn render_for_tests(
     let view = overlay.view.clone();
     let items = items.into_iter().map(|item| (0, item)).collect();
     let mut session = Session::new(vec![overlay], settings, 0, None, items);
-    session.exporting = true;
+    match pointer {
+        TestPointer::None => session.exporting = true,
+        TestPointer::Hover { x, y, option } => {
+            session.hover = Some(NSPoint::new(x, y));
+            session.option = option;
+        }
+        TestPointer::DragArea { from, to } => {
+            let (start, end) = (NSPoint::new(from.0, from.1), NSPoint::new(to.0, to.1));
+            session.hover = Some(end);
+            session.drag = Some(session::Drag { start, end, tool: session::Tool::Area, edit: None });
+        }
+    }
     SESSION.with(|s| *s.borrow_mut() = Some(session));
     let rep = view.bitmapImageRepForCachingDisplayInRect(rect);
     if let Some(rep) = &rep {

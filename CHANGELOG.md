@@ -7,6 +7,28 @@ the GitHub release shows.
 
 ## [Unreleased]
 
+### Added
+
+- Floating rulers turn to any angle: drag the far end with ⌥ (⇧ snaps to
+  15°), press ⌥ and an arrow key to turn by a degree (⇧: 15°), or choose
+  Straighten in a ruler's menu. Clicks beside a turned ruler go through to
+  what is underneath.
+- ⌃-drag from one window, button, or field to another keeps a box around
+  both (⌃-click still keeps just the one under the pointer).
+- VoiceOver reads a ruler's length, angle, the pointer's position along it,
+  and its keys; the Colors window reads each color's codes and announces
+  copies and contrast.
+
+### Changed
+
+- A ruler running down the screen now has its ticks on its right edge and
+  its numbers turned with it, like a turned physical ruler.
+
+### Fixed
+
+- A right-click while macOS still reports ⌃ held (as just after a ⌃
+  shortcut) measures or ends measuring, instead of keeping a window.
+
 ## [0.3.1] - 2026-11-01
 
 ### Added
